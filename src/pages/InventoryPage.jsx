@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchInventory, predictStockout } from '../data/api';
+import { fetchInventory, predictStockout, searchInventory } from '../data/api';
 import WarehouseMap from '../components/WarehouseMap';
 import ScanStation from '../components/ScanStation';
 import { initialInventory } from '../data/mockInventory';
@@ -15,6 +15,9 @@ export default function InventoryPage() {
   const [liveCount, setLiveCount] = useState(0);
   const [liveLoading, setLiveLoading] = useState(true);
   const [liveError, setLiveError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState(null);
+  const searchTimer = useRef(null);
 
   // Stockout predictor state
   const [predForm, setPredForm] = useState({
@@ -77,8 +80,9 @@ export default function InventoryPage() {
     }
   };
 
-  // Determine column names from live data
-  const columns = liveData.length > 0 ? Object.keys(liveData[0]).slice(0, 8) : [];
+  // Determine which data to show
+  const displayData = searchResults ? searchResults.data : liveData;
+  const columns = displayData.length > 0 ? Object.keys(displayData[0]).slice(0, 8) : [];
 
   const riskColor = {
     'High Risk of Stockout': { bg: 'bg-warning-red/10 border-warning-red/30', text: 'text-warning-red' },
@@ -92,6 +96,45 @@ export default function InventoryPage() {
       <div>
         <h2 className="text-lg font-bold text-gray-100">Warehouse & Inventory</h2>
         <p className="text-xs text-industrial-300 mt-0.5">Live inventory data from MongoDB + Warehouse map + ML stockout predictor</p>
+      </div>
+
+      {/* Product Search Bar */}
+      <div className="panel">
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-industrial-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => {
+              const q = e.target.value;
+              setSearchQuery(q);
+              if (searchTimer.current) clearTimeout(searchTimer.current);
+              if (!q.trim()) { setSearchResults(null); return; }
+              searchTimer.current = setTimeout(() => {
+                searchInventory(q).then(setSearchResults).catch(() => {});
+              }, 300);
+            }}
+            placeholder="Search products by SKU, warehouse, region, date..."
+            className="w-full bg-industrial-900 border border-industrial-600 rounded-lg pl-10 pr-4 py-2.5
+                       text-xs text-gray-100 placeholder:text-industrial-400
+                       focus:outline-none focus:border-accent-cyan/50 focus:ring-1 focus:ring-accent-cyan/20
+                       transition-all duration-200"
+          />
+          {searchQuery && (
+            <button onClick={() => { setSearchQuery(''); setSearchResults(null); }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-industrial-400 hover:text-gray-100 text-xs">
+              ✕
+            </button>
+          )}
+        </div>
+        {searchResults && (
+          <div className="mt-2 text-[10px] text-industrial-300">
+            Found <span className="text-accent-cyan font-bold">{searchResults.count}</span> results for "{searchQuery}"
+          </div>
+        )}
       </div>
 
       {/* Row 1: Warehouse Map + Scan Station */}
@@ -108,9 +151,9 @@ export default function InventoryPage() {
               d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7C5 4 4 5 4 7z" />
           </svg>
           Live Inventory Data
-          {liveCount > 0 && (
+          {(searchResults ? searchResults.count : liveCount) > 0 && (
             <span className="ml-auto text-[10px] font-mono text-accent-cyan bg-accent-cyan/10 px-2 py-0.5 rounded">
-              {liveCount} records
+              {searchResults ? searchResults.count : liveCount} records
             </span>
           )}
         </div>
@@ -125,7 +168,7 @@ export default function InventoryPage() {
             ⚠️ Backend offline — {liveError}
           </div>
         )}
-        {!liveLoading && !liveError && liveData.length > 0 && (
+        {!liveLoading && !liveError && displayData.length > 0 && (
           <div className="overflow-x-auto overflow-y-auto max-h-[300px] rounded-lg border border-industrial-600">
             <table className="w-full text-[11px] text-left">
               <thead className="bg-industrial-700 sticky top-0 z-10">
@@ -138,7 +181,7 @@ export default function InventoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {liveData.map((row, i) => (
+                {displayData.map((row, i) => (
                   <tr key={i} className="border-t border-industrial-600/50 hover:bg-industrial-700/30 transition-colors">
                     {columns.map((col) => (
                       <td key={col} className="px-3 py-2 text-industrial-100 whitespace-nowrap font-mono">

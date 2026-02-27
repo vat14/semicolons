@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { Scanner } from '@yudiel/react-qr-scanner';
 
 export default function ScanStation({ inventory, onScan }) {
   const [inputValue, setInputValue] = useState('');
@@ -36,33 +37,69 @@ export default function ScanStation({ inventory, onScan }) {
         Manual Scan Station
       </div>
 
-      {/* Webcam Scanner Mockup */}
-      <div className="relative rounded-lg bg-industrial-900 border border-industrial-600
-                      aspect-square max-h-[200px] flex flex-col items-center justify-center
+      {/* Live Webcam Scanner */}
+      <div className="relative rounded-lg bg-black border border-industrial-600
+                      aspect-square max-h-[250px] flex flex-col items-center justify-center
                       overflow-hidden mb-4">
-        {/* Animated scan line */}
-        <div className="absolute left-4 right-4 h-0.5 bg-gradient-to-r from-transparent via-accent-violet to-transparent
-                        animate-bounce opacity-60" />
+        
+        <Scanner
+          onScan={(result) => {
+            if (result && result.length > 0) {
+              const code = result[0].rawValue.trim().toUpperCase();
+              
+              // Prevent spam-scanning the exact same code rapidly
+              if (inputValue !== code) {
+                setInputValue(code);
+                
+                // Programmatically trigger the submit logic for the scanned code
+                const item = inventory.find((i) => i.id === code);
+                if (!item) {
+                  setFeedback({ type: 'error', message: `Item "${code}" not found in inventory` });
+                  setTimeout(() => setFeedback(null), 3000);
+                  setInputValue('');
+                  return;
+                }
 
-        {/* QR frame overlay */}
-        <div className="relative w-24 h-24 mb-3">
-          <div className="absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-accent-violet rounded-tl" />
-          <div className="absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-accent-violet rounded-tr" />
-          <div className="absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-accent-violet rounded-bl" />
-          <div className="absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-accent-violet rounded-br" />
+                onScan(code, mode);
+                setFeedback({
+                  type: 'success',
+                  message: `${mode === 'add' ? 'Added' : 'Removed'} 1× ${item.name} (Zone ${item.zone})`,
+                });
+                setTimeout(() => setFeedback(null), 3000);
+                setTimeout(() => setInputValue(''), 2000); // clear input after a delay
+              }
+            }
+          }}
+          components={{
+            audio: false,       // disable beep noise
+            finder: true,       // show the scanning box
+            tracker: undefined, 
+          }}
+          styles={{
+            container: { width: '100%', height: '100%' },
+            video: { objectFit: 'cover' }
+          }}
+        />
 
-          {/* Fake QR icon */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <svg className="w-10 h-10 text-industrial-400 opacity-50" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zM3 21h8v-8H3v8zm2-6h4v4H5v-4zM13 3v8h8V3h-8zm6 6h-4V5h4v4zM13 13h2v2h-2zM15 15h2v2h-2zM13 17h2v2h-2zM17 13h2v2h-2zM19 15h2v2h-2zM17 17h2v2h-2zM15 19h2v2h-2zM19 19h2v2h-2z" />
-            </svg>
+        {/* Custom reticle overlay */}
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+          <div className="w-40 h-40 border-2 border-accent-violet/30 rounded-lg relative">
+            <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-accent-violet rounded-tl-lg" />
+            <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-accent-violet rounded-tr-lg" />
+            <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-accent-violet rounded-bl-lg" />
+            <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-accent-violet rounded-br-lg" />
+            
+            {/* Animated scan line */}
+            <div className="absolute left-0 right-0 h-0.5 bg-accent-violet/50 shadow-[0_0_8px_2px_rgba(167,139,250,0.4)]
+                            animate-scan-line" />
           </div>
         </div>
-
-        <span className="text-[10px] text-industrial-400 mb-1">Align QR / Barcode in frame</span>
-        <span className="text-[9px] text-industrial-500">
-          💡 Install <code className="text-accent-violet/80">@yudiel/react-qr-scanner</code> for live scanning
-        </span>
+        
+        <div className="absolute bottom-2 left-0 right-0 text-center pointer-events-none">
+          <span className="bg-black/60 text-white px-2 py-1 rounded text-[10px] backdrop-blur-sm border border-white/10">
+            Scanning for Codes...
+          </span>
+        </div>
       </div>
 
       {/* Mode Toggle */}
@@ -123,14 +160,10 @@ export default function ScanStation({ inventory, onScan }) {
 
       {/* Tip */}
       <div className="mt-auto pt-4">
-        <div className="bg-accent-violet/5 border border-accent-violet/20 rounded-lg p-3">
-          <p className="text-[10px] text-accent-violet/80 leading-relaxed">
-            <strong className="text-accent-violet">Recommended:</strong> Install{' '}
-            <code className="bg-industrial-700 px-1 rounded text-[9px]">@yudiel/react-qr-scanner</code>{' '}
-            for live webcam QR/Barcode scanning integration.
-          </p>
-          <p className="text-[9px] text-industrial-400 mt-1 font-mono">
-            npm install @yudiel/react-qr-scanner
+        <div className="bg-safe-green/5 border border-safe-green/20 rounded-lg p-3 flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-safe-green animate-pulse" />
+          <p className="text-[10px] text-safe-green/80 leading-relaxed">
+            Live webcam scanner is **active**. Hold a QR code or Barcode up to the camera to automatically {mode}.
           </p>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import GlobalSearch from './GlobalSearch';
 
 const navItems = [
   {
@@ -31,6 +32,17 @@ const navItems = [
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
           d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+      </svg>
+    ),
+  },
+  {
+    to: '/ml-insights',
+    label: 'ML Insights',
+    subtitle: 'Forecasting',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+          d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19 14.5M14.25 3.104c.251.023.501.05.75.082M19 14.5l-1.455.654a3.375 3.375 0 01-3.09 0L13 14.5" />
       </svg>
     ),
   },
@@ -69,6 +81,11 @@ export default function Sidebar() {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Global Search */}
+      <div className="px-4 py-3 border-b border-industrial-600">
+        <GlobalSearch />
       </div>
 
       {/* Navigation */}

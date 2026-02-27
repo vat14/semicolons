@@ -33,3 +33,52 @@ export async function fetchEngineStatus() {
   if (!res.ok) throw new Error(`Engine status fetch failed: ${res.status}`);
   return res.json();
 }
+
+// ==========================================
+// ML MODEL API HELPERS
+// ==========================================
+export async function fetchMLSummary() {
+  const res = await fetch(`${API_BASE}/api/ml/summary`);
+  if (!res.ok) throw new Error(`ML summary fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export async function predictDemand(data) {
+  const res = await fetch(`${API_BASE}/api/ml/predict-demand`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Demand prediction failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchTopRisk(limit = 10) {
+  const res = await fetch(`${API_BASE}/api/ml/top-risk?limit=${limit}`);
+  if (!res.ok) throw new Error(`Top risk fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchAvailableInputs() {
+  const res = await fetch(`${API_BASE}/api/ml/available-inputs`);
+  if (!res.ok) throw new Error(`Available inputs fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export async function searchInventory(query) {
+  const res = await fetch(`${API_BASE}/api/inventory/search?q=${encodeURIComponent(query)}`);
+  if (!res.ok) throw new Error(`Search failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchAlerts() {
+  const res = await fetch(`${API_BASE}/api/alerts`);
+  if (!res.ok) throw new Error(`Alerts fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchSellingInsights() {
+  const res = await fetch(`${API_BASE}/api/ml/selling-insights`);
+  if (!res.ok) throw new Error(`Selling insights fetch failed: ${res.status}`);
+  return res.json();
+}

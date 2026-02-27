@@ -3,6 +3,7 @@ import Layout from './components/Layout';
 import HomePage from './pages/HomePage';
 import InventoryPage from './pages/InventoryPage';
 import VisionPage from './pages/VisionPage';
+import MLInsightsPage from './pages/MLInsightsPage';
 import LogisticsPage from './pages/LogisticsPage';
 
 function App() {
@@ -13,6 +14,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/vision" element={<VisionPage />} />
+          <Route path="/ml-insights" element={<MLInsightsPage />} />
           <Route path="/logistics" element={<LogisticsPage />} />
         </Route>
       </Routes>
