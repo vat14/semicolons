@@ -376,10 +376,12 @@ def get_chart_data():
         for _, row in top_rev.iterrows()
     ]
 
-    # 5. Warehouse Comparison
+    # 5. Warehouse Comparison (with revenue)
+    df['_Revenue'] = df['Units_Sold'] * df['Unit_Cost']
     wh_stats = df.groupby('Warehouse_ID').agg(
         avg_inv=('Inventory_Level', 'mean'),
         total_sold=('Units_Sold', 'sum'),
+        total_revenue=('_Revenue', 'sum'),
         stockouts=('Stockout_Flag', 'sum'),
         avg_lead=('Supplier_Lead_Time_Days', 'mean'),
         fill_rate=('Inventory_Level', lambda x: (x > 0).mean() * 100),
@@ -388,6 +390,7 @@ def get_chart_data():
         {"warehouse": row['Warehouse_ID'],
          "avg_inventory": round(float(row['avg_inv']), 0),
          "total_sold": int(row['total_sold']),
+         "revenue": round(float(row['total_revenue']), 0),
          "stockouts": int(row['stockouts']),
          "avg_lead_time": round(float(row['avg_lead']), 1),
          "fill_rate": round(float(row['fill_rate']), 1)}

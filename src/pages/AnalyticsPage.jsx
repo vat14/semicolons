@@ -24,6 +24,7 @@ export default function AnalyticsPage() {
   const [compareMetric, setCompareMetric] = useState('revenue');
   const [product1, setSku1] = useState('');
   const [product2, setSku2] = useState('');
+  const [selectedWarehouse, setSelectedWarehouse] = useState('');
 
   useEffect(() => {
     fetchChartData()
@@ -256,51 +257,63 @@ export default function AnalyticsPage() {
         </ResponsiveContainer>
       </div>
 
-      {/* Row 4: Heatmap — redesigned as a visual grid */}
+      {/* Row 4: Per-Warehouse Demand Heatmap */}
       <div className="panel">
-        <div className="panel-header">Inventory Levels by Product × Warehouse</div>
-        <div className="overflow-x-auto mt-3">
-          <table className="w-full text-xs border-separate" style={{ borderSpacing: '3px' }}>
-            <thead>
-              <tr>
-                <th className="px-3 py-2 text-left text-surface-500 font-medium text-[10px] uppercase tracking-wider" style={{ width: '100px' }}>Product</th>
-                {heatmapWhs.map((wh) => (
-                  <th key={wh} className="px-3 py-2 text-center text-surface-500 font-medium text-[10px] uppercase tracking-wider">{wh}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {heatmapSkus.map((product_id) => (
-                <tr key={product_id}>
-                  <td className="px-3 py-2.5 text-surface-700 font-semibold text-[10px]">{product_id}</td>
-                  {heatmapWhs.map((wh) => {
-                    const val = heatLookup[`${product_id}-${wh}`] || 0;
-                    const ratio = val / maxLevel;
-                    // Gradient from red (low) → amber → green (high)
-                    const hue = ratio * 120; // 0=red, 60=yellow, 120=green
-                    const bgColor = val === 0 ? '#f9fafb' : `hsl(${hue}, 70%, 92%)`;
-                    const textColor = val === 0 ? '#d1d5db' : `hsl(${hue}, 60%, 35%)`;
-                    const barWidth = Math.max(ratio * 100, 5);
-                    const barColor = val === 0 ? '#e5e7eb' : `hsl(${hue}, 65%, 55%)`;
-                    return (
-                      <td key={wh} className="px-2 py-2 rounded-md" style={{ backgroundColor: bgColor, minWidth: '80px' }}>
-                        <div className="text-center font-bold text-sm" style={{ color: textColor }}>{val || '—'}</div>
-                        <div className="mt-1 h-1.5 rounded-full bg-white/60 overflow-hidden">
-                          <div className="h-full rounded-full transition-all" style={{ width: `${barWidth}%`, backgroundColor: barColor }} />
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="panel-header">Product Demand by Warehouse</div>
+        <p className="text-[10px] text-surface-400 mt-1 mb-3">Select a warehouse to view demand levels — red = low demand, green = high demand</p>
+
+        {/* Warehouse selector tabs */}
+        <div className="flex gap-1 mb-4 bg-surface-100 rounded-lg p-1 flex-wrap">
+          {heatmapWhs.map((wh) => (
+            <button key={wh} onClick={() => setSelectedWarehouse(wh)}
+              className={`px-4 py-2 rounded-md text-xs font-medium transition-all ${
+                (selectedWarehouse || heatmapWhs[0]) === wh
+                  ? 'bg-white text-surface-800 shadow-sm'
+                  : 'text-surface-500 hover:text-surface-700'
+              }`}>
+              {wh}
+            </button>
+          ))}
         </div>
+
+        {/* Demand cards for selected warehouse */}
+        {(() => {
+          const activeWh = selectedWarehouse || heatmapWhs[0];
+          const whProducts = data.heatmap
+            .filter((h) => h.warehouse === activeWh)
+            .sort((a, b) => b.level - a.level);
+          const whMax = Math.max(...whProducts.map((p) => p.level), 1);
+          const whMin = Math.min(...whProducts.map((p) => p.level), 0);
+
+          return (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {whProducts.map((item) => {
+                const range = whMax - whMin || 1;
+                const ratio = (item.level - whMin) / range;
+                const hue = ratio * 120; // 0=red, 120=green
+                const bgColor = `hsl(${hue}, 65%, 94%)`;
+                const barColor = `hsl(${hue}, 60%, 50%)`;
+                const textColor = `hsl(${hue}, 55%, 30%)`;
+                return (
+                  <div key={item.product_id} className="rounded-xl p-3 border transition-all hover:shadow-md"
+                    style={{ backgroundColor: bgColor, borderColor: `hsl(${hue}, 50%, 85%)` }}>
+                    <div className="text-[10px] font-semibold text-surface-600 truncate">{item.product_id}</div>
+                    <div className="text-xl font-bold mt-1" style={{ color: textColor }}>{item.level}</div>
+                    <div className="text-[9px] text-surface-500 mb-2">avg inventory</div>
+                    <div className="h-2 rounded-full bg-white/70 overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.round(ratio * 100)}%`, backgroundColor: barColor }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+
         <div className="flex items-center justify-center gap-6 mt-4 text-[10px] text-surface-500">
-          <div className="flex items-center gap-1.5"><div className="w-5 h-3 rounded" style={{ background: 'hsl(0, 70%, 92%)' }} /><span>Low Stock</span></div>
-          <div className="flex items-center gap-1.5"><div className="w-5 h-3 rounded" style={{ background: 'hsl(40, 70%, 92%)' }} /><span>Medium</span></div>
-          <div className="flex items-center gap-1.5"><div className="w-5 h-3 rounded" style={{ background: 'hsl(80, 70%, 92%)' }} /><span>Good</span></div>
-          <div className="flex items-center gap-1.5"><div className="w-5 h-3 rounded" style={{ background: 'hsl(120, 70%, 92%)' }} /><span>High Stock</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-5 h-3 rounded" style={{ background: 'hsl(0, 65%, 94%)' }} /><span>Low Demand</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-5 h-3 rounded" style={{ background: 'hsl(60, 65%, 94%)' }} /><span>Medium</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-5 h-3 rounded" style={{ background: 'hsl(120, 65%, 94%)' }} /><span>High Demand</span></div>
         </div>
       </div>
     </div>
