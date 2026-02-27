@@ -6,9 +6,21 @@ export async function fetchKPIs() {
   return res.json();
 }
 
+export async function fetchReturns() {
+  const res = await fetch(`${API_BASE}/api/returns`);
+  if (!res.ok) throw new Error(`Returns fetch failed: ${res.status}`);
+  return res.json();
+}
+
 export async function fetchInventory(limit = 50) {
   const res = await fetch(`${API_BASE}/api/inventory?limit=${limit}`);
   if (!res.ok) throw new Error(`Inventory fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchWarehouseStats() {
+  const res = await fetch(`${API_BASE}/api/inventory/warehouse-stats`);
+  if (!res.ok) throw new Error(`Warehouse stats fetch failed: ${res.status}`);
   return res.json();
 }
 

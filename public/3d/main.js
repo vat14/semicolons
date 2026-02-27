@@ -265,7 +265,7 @@ class Factory3DModel {
         }
     }
     
-   animateBoxToDestination(box, destinationId) {
+    animateBoxToDestination(box, destinationId) {
         const destination = this.storageLocations[destinationId];
         if (!destination) return;
         
@@ -298,7 +298,7 @@ class Factory3DModel {
                 box.position.copy(destPos);
                 box.rotation.y = 0; // Reset rotation on shelf
                 box.userData.arrived = true;
-                this.showInventoryInfo(destinationId);
+                this.showInventoryInfo(destinationId, 'add');
                 return;
             }
             
@@ -340,6 +340,122 @@ class Factory3DModel {
         };
         requestAnimationFrame(animate);
     }
+
+    // REVERSE animation: box leaves warehouse shelf, travels back to dock, then disappears
+    animateBoxFromDestination(box, destinationId) {
+        const destination = this.storageLocations[destinationId];
+        if (!destination) {
+            // If location not found, just fade and remove
+            this.fadeAndRemoveBox(box);
+            return;
+        }
+
+        const shelfPos = destination.getWorldPosition(new THREE.Vector3());
+        shelfPos.y += 0.8;
+
+        // Start the box at the shelf
+        box.position.copy(shelfPos);
+
+        const dockPos = this.receivingPoint.clone();
+        dockPos.y += 0.5;
+        const centralX = Math.round(shelfPos.x / 20) * 20;
+
+        // Reverse waypoints: shelf → warehouse floor → highway → dock entrance → dock
+        const waypoints = [
+            shelfPos.clone(),                                           // 0: Shelf
+            new THREE.Vector3(centralX, dockPos.y, shelfPos.z),         // 1: Lower from shelf (robotic arm down)
+            new THREE.Vector3(centralX, dockPos.y, 15),                 // 2: Exit warehouse onto highway
+            new THREE.Vector3(-60, dockPos.y, 15),                      // 3: Travel highway back
+            dockPos.clone()                                             // 4: Arrive at dock
+        ];
+
+        const durations = [
+            1500,                                                       // Robotic arm descent
+            Math.max(1000, Math.abs(shelfPos.z - 15) * 60),            // Exit warehouse
+            Math.max(1000, Math.abs(centralX - (-60)) * 60),           // Highway travel
+            1000                                                        // Enter dock
+        ];
+
+        let currentSegment = 0;
+        let segmentStartTime = Date.now();
+        const self = this;
+
+        const animate = () => {
+            if (currentSegment >= waypoints.length - 1) {
+                box.position.copy(dockPos);
+                box.userData.arrived = true;
+                self.showInventoryInfo(destinationId, 'remove');
+                // Fade out and remove at dock
+                self.fadeAndRemoveBox(box);
+                return;
+            }
+
+            const wpStart = waypoints[currentSegment];
+            const wpEnd = waypoints[currentSegment + 1];
+            const elapsed = Date.now() - segmentStartTime;
+            let progress = Math.min(elapsed / durations[currentSegment], 1);
+
+            if (progress >= 1) {
+                currentSegment++;
+                segmentStartTime = Date.now();
+                requestAnimationFrame(animate);
+                return;
+            }
+
+            // Phase 0: Robotic arm descent from shelf
+            if (currentSegment === 0) {
+                const ease = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+                box.position.x = wpStart.x + (wpEnd.x - wpStart.x) * ease;
+                box.position.z = wpStart.z + (wpEnd.z - wpStart.z) * ease;
+                box.position.y = wpStart.y + (wpEnd.y - wpStart.y) * ease + (Math.sin(progress * Math.PI) * 2);
+                box.rotation.y = ease * Math.PI;
+            }
+            // Phases 1-3: Belt travel (reverse direction)
+            else {
+                box.position.x = wpStart.x + (wpEnd.x - wpStart.x) * progress;
+                box.position.z = wpStart.z + (wpEnd.z - wpStart.z) * progress;
+                box.position.y = wpStart.y + (Math.sin(Date.now() * 0.05) * 0.02); // Rattle
+
+                // Face direction of travel (reversed)
+                if (currentSegment === 1) box.rotation.y = Math.PI;             // Moving +Z out of warehouse
+                else if (currentSegment === 2) box.rotation.y = Math.PI / 2;    // Moving -X on highway
+                else if (currentSegment === 3) box.rotation.y = Math.PI;        // Moving +Z to dock
+            }
+
+            requestAnimationFrame(animate);
+        };
+        requestAnimationFrame(animate);
+    }
+
+    // Shrink + fade a box and remove it from the scene
+    fadeAndRemoveBox(box) {
+        const startTime = Date.now();
+        const duration = 800;
+        const self = this;
+
+        const fade = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+
+            const scale = 1 - progress;
+            box.scale.set(scale, scale, scale);
+            // Fade all child meshes
+            box.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    child.material.transparent = true;
+                    child.material.opacity = 1 - progress;
+                }
+            });
+
+            if (progress >= 1) {
+                self.scene.remove(box);
+                self.incomingBoxes = self.incomingBoxes.filter(b => b !== box);
+                return;
+            }
+            requestAnimationFrame(fade);
+        };
+        requestAnimationFrame(fade);
+    }
     
     // (Keep your existing highlightLocation, showInventoryInfo, onWindowResize, and animate methods here unchanged)
     
@@ -351,10 +467,12 @@ class Factory3DModel {
         if (target && target.material) target.material.emissive.setHex(0x00ffcc);
     }
     
-    showInventoryInfo(locationId) {
+    showInventoryInfo(locationId, mode) {
+        const statusColor = mode === 'remove' ? '#ff3333' : '#00ffcc';
+        const statusText = mode === 'remove' ? 'Dispatched' : 'Restocked';
         document.getElementById('inventory-info').innerHTML = `
             <div class="info-row"><span class="label">Location:</span><span class="value">${locationId}</span></div>
-            <div class="info-row"><span class="label">Status:</span><span class="value" style="color:#00ffcc">Restocked</span></div>
+            <div class="info-row"><span class="label">Status:</span><span class="value" style="color:${statusColor}">${statusText}</span></div>
         `;
         document.getElementById('info-panel').style.display = 'block';
     }

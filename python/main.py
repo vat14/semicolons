@@ -83,12 +83,13 @@ class DemandPredictRequest(BaseModel):
 
 class ManualScanAction(BaseModel):
     product_id: str
-    mode: str  # "add" or "remove"
+    mode: str  # "add", "remove", or "return"
 
 # ==========================================
 # VISION ENGINE STATE (in-memory)
 # ==========================================
 scan_log: list[dict] = []
+return_log: list[dict] = []  # Tracks returned products
 last_engine_heartbeat: float = 0
 latest_frame: bytes = b""  # Latest JPEG frame from engine.py
 
@@ -100,6 +101,34 @@ def get_inventory_status(limit: int = 50):
     try:
         data = load_data()[:limit]  # type: ignore
         return {"count": len(data), "data": data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/inventory/warehouse-stats")
+def get_warehouse_stats():
+    """Returns top products per warehouse from the real CSV data."""
+    try:
+        df = pd.DataFrame(load_data())
+        # Get the latest entry per SKU+Warehouse combo
+        latest = df.sort_values('Date').drop_duplicates(subset=['SKU_ID', 'Warehouse_ID'], keep='last')
+        
+        result = {}
+        for wh_id, group in latest.groupby('Warehouse_ID'):
+            # Top 3 products by Units_Sold (most active) in this warehouse
+            top = group.nlargest(3, 'Units_Sold')
+            items = []
+            for _, row in top.iterrows():
+                items.append({
+                    "id": str(row.get('SKU_ID', '')),
+                    "name": str(row.get('Product_ID', row.get('SKU_ID', ''))),
+                    "stock": int(row.get('Inventory_Level', 0)),
+                    "safetyStock": int(row.get('Reorder_Point', 0)),
+                })
+            # Map WH_1 -> "WH 1" for the frontend zone keys
+            zone_key = str(wh_id).replace('_', ' ')
+            result[zone_key] = items
+        
+        return {"warehouses": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -120,7 +149,8 @@ def get_dashboard_kpis():
         return {
             "total_items_tracked": total_records,
             "stockout_events": stockout_count,
-            "average_inventory_level": avg_inv
+            "average_inventory_level": avg_inv,
+            "returns_today": len(return_log)
         }
     except Exception as e:
          raise HTTPException(status_code=500, detail=str(e))
@@ -179,13 +209,27 @@ def update_inventory_csv(action: ManualScanAction):
         load_data()
 
     for row in _data_cache:
-        # Match by product_id or fallback to any matching string in ID columns
-        if str(row.get('Product_ID')) == action.product_id or str(row.get('SKU_ID')) == action.product_id:
+        # Match by product_id, SKU_ID, or Product_ID — case-insensitive
+        pid = action.product_id.strip()
+        if (str(row.get('Product_ID', '')).strip().lower() == pid.lower() or
+            str(row.get('SKU_ID', '')).strip().lower() == pid.lower() or
+            str(row.get('Product_Name', '')).strip().lower() == pid.lower()):
             current_inv = int(row.get('Inventory_Level', 0))
             if action.mode == 'add':
                 row['Inventory_Level'] = current_inv + 1
             elif action.mode == 'remove':
                 row['Inventory_Level'] = max(0, current_inv - 1)
+            elif action.mode == 'return':
+                row['Inventory_Level'] = current_inv + 1
+                # Log the return
+                return_log.append({
+                    "product_id": str(row.get('Product_ID', '')),
+                    "sku_id": str(row.get('SKU_ID', '')),
+                    "warehouse_id": str(row.get('Warehouse_ID', 'WH_1')),
+                    "timestamp": pd.Timestamp.now().isoformat(),
+                    "previous_level": current_inv,
+                    "new_level": current_inv + 1
+                })
             updated = True
             
             # Write entire cache back to CSV
@@ -197,10 +241,9 @@ def update_inventory_csv(action: ManualScanAction):
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Failed to write CSV: {str(e)}")
             
-            # Retrain model in background slightly delayed or skipped to keep API fast
-            # For this deployment, we just update the cache. The next app reboot will retrain.
+            status_msg = "returned" if action.mode == "return" else "success"
             return {
-                "status": "success", 
+                "status": status_msg, 
                 "new_level": row['Inventory_Level'],
                 "warehouse_id": str(row.get('Warehouse_ID', 'WH_1')),
                 "product_name": str(row.get('Product_ID', 'Unknown'))
@@ -208,6 +251,11 @@ def update_inventory_csv(action: ManualScanAction):
             
     if not updated:
         raise HTTPException(status_code=404, detail="Product ID not found in dataset.")
+
+@app.get("/api/returns")
+def get_returns():
+    """Returns the return log with count and recent entries."""
+    return {"count": len(return_log), "data": return_log[-50:]}
 
 @app.get("/api/alerts")
 def get_alerts():

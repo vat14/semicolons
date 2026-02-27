@@ -16,6 +16,7 @@ const warehouseLocations = [
   { id: 'WH-002', name: 'Delhi NCR', lat: 28.7041, lng: 77.1025 },
   { id: 'WH-003', name: 'Bangalore Hub', lat: 12.9716, lng: 77.5946 },
   { id: 'WH-004', name: 'Chennai Port', lat: 13.0827, lng: 80.2707 },
+  { id: 'WH-005', name: 'Kolkata East', lat: 22.5726, lng: 88.3639 },
 ];
 
 // Debounce hook

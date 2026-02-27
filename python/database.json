@@ -1,14 +1,1 @@
-{
-    "QRCODE-MUM-WH_1-SKU_1": {
-        "assigned_location": "UNASSIGNED",
-        "physical_location": "SCANNED",
-        "status": "LOGGED",
-        "detected_shape": "N/A"
-    },
-    "CODE39-A": {
-        "assigned_location": "UNASSIGNED",
-        "physical_location": "SCANNED",
-        "status": "LOGGED",
-        "detected_shape": "N/A"
-    }
-}
+{}

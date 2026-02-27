@@ -1,12 +1,11 @@
 import { useState, useCallback, useRef } from 'react';
-import { initialInventory } from '../data/mockInventory';
 import WarehouseMap from './WarehouseMap';
 import CameraFeed from './CameraFeed';
 import AlertsPanel from './AlertsPanel';
 import ScanStation from './ScanStation';
 
 export default function Dashboard() {
-  const [inventory, setInventory] = useState(initialInventory);
+  const [inventory, setInventory] = useState([]);
   const [pulsingZone, setPulsingZone] = useState(null);
   const pulseTimer = useRef(null);
 

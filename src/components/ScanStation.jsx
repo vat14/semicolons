@@ -9,13 +9,14 @@ export default function ScanStation({ onScan }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const code = inputValue.trim().toUpperCase();
+    const code = inputValue.trim();
     if (!code) return;
 
-    onScan({ assigned_location: code.startsWith('Z') ? code.split('-')[0] : 'A', id: code }, mode);
+    onScan({ id: code }, mode);
+    const modeLabel = mode === 'add' ? 'Scanned IN' : mode === 'remove' ? 'Scanned OUT' : 'Returned';
     setFeedback({
       type: 'success',
-      message: `${mode === 'add' ? 'Scanned IN' : 'Scanned OUT'}: ${code}`,
+      message: `${modeLabel}: ${code}`,
     });
     setTimeout(() => setFeedback(null), 3000);
     setInputValue('');
@@ -24,10 +25,16 @@ export default function ScanStation({ onScan }) {
   const handleQrScan = (result) => {
     if (result?.[0]?.rawValue) {
       const code = result[0].rawValue;
-      onScan({ assigned_location: 'A', id: code }, mode);
+      onScan({ id: code }, mode);
       setFeedback({ type: 'success', message: `QR Scanned: ${code}` });
       setTimeout(() => setFeedback(null), 3000);
     }
+  };
+
+  const modeConfig = {
+    add:    { label: '📥 Scan In',  btnClass: 'btn-primary', btnText: '+ Add' },
+    remove: { label: '📤 Scan Out', btnClass: 'btn-danger',  btnText: '− Remove' },
+    return: { label: '📦 Return',   btnClass: '',             btnText: '↩ Return' },
   };
 
   return (
@@ -40,7 +47,7 @@ export default function ScanStation({ onScan }) {
         Scan Station
       </div>
 
-      {/* Mode Toggle */}
+      {/* Mode Toggle — 3 modes */}
       <div className="flex gap-1 mb-4 bg-surface-100 rounded-lg p-1">
         <button onClick={() => setMode('add')}
           className={`flex-1 px-3 py-2 rounded-md text-xs font-medium transition-all
@@ -51,6 +58,12 @@ export default function ScanStation({ onScan }) {
           className={`flex-1 px-3 py-2 rounded-md text-xs font-medium transition-all
             ${mode === 'remove' ? 'bg-danger-500 text-white shadow-sm' : 'text-surface-600 hover:bg-surface-200'}`}>
           📤 Scan Out
+        </button>
+        <button onClick={() => setMode('return')}
+          className={`flex-1 px-3 py-2 rounded-md text-xs font-medium transition-all
+            ${mode === 'return' ? 'bg-amber-500 text-white shadow-sm' : 'text-surface-600 hover:bg-surface-200'}`}
+          style={mode === 'return' ? { backgroundColor: '#f59e0b' } : {}}>
+          📦 Return
         </button>
       </div>
 
@@ -63,8 +76,10 @@ export default function ScanStation({ onScan }) {
           placeholder="Enter item code or scan QR..."
           className="input-field flex-1"
         />
-        <button type="submit" className={mode === 'add' ? 'btn-primary' : 'btn-danger'}>
-          {mode === 'add' ? '+ Add' : '− Remove'}
+        <button type="submit"
+          className={mode === 'add' ? 'btn-primary' : mode === 'remove' ? 'btn-danger' : ''}
+          style={mode === 'return' ? { backgroundColor: '#f59e0b', color: '#fff', padding: '0.5rem 1rem', borderRadius: '0.5rem', fontSize: '0.875rem', fontWeight: 600, border: 'none', cursor: 'pointer' } : {}}>
+          {modeConfig[mode].btnText}
         </button>
       </form>
 

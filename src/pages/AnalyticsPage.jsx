@@ -118,14 +118,15 @@ export default function AnalyticsPage() {
         <p className="text-sm text-surface-500 mt-0.5">Visual breakdown of inventory health, trends, revenue & warehouse performance</p>
       </div>
 
-      {/* Row 1: Stock Health */}
+      {/* Row 1: Stock Health + Time Series — side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="panel col-span-1 lg:col-span-2">
+        {/* Stock Health Pie */}
+        <div className="panel">
           <div className="panel-header">Stock Health Overview</div>
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart margin={{ top: 25, right: 50, bottom: 25, left: 50 }}>
+          <ResponsiveContainer width="100%" height={240}>
+            <PieChart>
               <Pie data={data.stock_health.filter((d) => d.value > 0)} cx="50%" cy="50%"
-                innerRadius={60} outerRadius={90} paddingAngle={4} dataKey="value"
+                innerRadius={55} outerRadius={85} paddingAngle={4} dataKey="value"
                 label={({ name, value }) => `${name}: ${value}`} labelLine={true}>
                 {data.stock_health.filter((d) => d.value > 0).map((entry, i) => (
                   <Cell key={i} fill={entry.color} stroke="none" />
@@ -134,7 +135,7 @@ export default function AnalyticsPage() {
               <Tooltip contentStyle={tooltipStyle} />
             </PieChart>
           </ResponsiveContainer>
-          <div className="flex flex-wrap justify-center gap-5 mt-4">
+          <div className="flex flex-wrap justify-center gap-4 mt-3">
             {data.stock_health.map((d, i) => (
               <div key={i} className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full" style={{ background: d.color }} />
@@ -143,40 +144,39 @@ export default function AnalyticsPage() {
             ))}
           </div>
         </div>
+
+        {/* Units Sold Time Series */}
+        <div className="panel">
+          <div className="panel-header">Units Sold Over Time (Last 30 Days)</div>
+          <ResponsiveContainer width="100%" height={280}>
+            <AreaChart data={data.time_series} margin={{ top: 8, right: 16, bottom: 0, left: -8 }}>
+              <defs>
+                <linearGradient id="soldGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="invGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15} />
+                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+              <XAxis dataKey="date" tick={{ fontSize: 8, fill: '#9ca3af' }} tickFormatter={(d) => d.slice(5)} />
+              <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} />
+              <Tooltip contentStyle={tooltipStyle} />
+              <Legend wrapperStyle={{ fontSize: '10px' }} />
+              <Area type="monotone" dataKey="sold" name="Units Sold" stroke="#8b5cf6" strokeWidth={2} fill="url(#soldGrad)" dot={false} />
+              <Area type="monotone" dataKey="avg_inv" name="Avg Inventory" stroke="#3b82f6" strokeWidth={1.5} fill="url(#invGrad)" dot={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
-      {/* Row 2: Time Series */}
-      <div className="panel">
-        <div className="panel-header">Units Sold Over Time (Last 30 Days)</div>
-        <ResponsiveContainer width="100%" height={250}>
-          <AreaChart data={data.time_series} margin={{ top: 8, right: 16, bottom: 0, left: -8 }}>
-            <defs>
-              <linearGradient id="soldGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.2} />
-                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="invGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15} />
-                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-            <XAxis dataKey="date" tick={{ fontSize: 8, fill: '#9ca3af' }} tickFormatter={(d) => d.slice(5)} />
-            <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} />
-            <Tooltip contentStyle={tooltipStyle} />
-            <Legend wrapperStyle={{ fontSize: '10px' }} />
-            <Area type="monotone" dataKey="sold" name="Units Sold" stroke="#8b5cf6" strokeWidth={2} fill="url(#soldGrad)" dot={false} />
-            <Area type="monotone" dataKey="avg_inv" name="Avg Inventory" stroke="#3b82f6" strokeWidth={1.5} fill="url(#invGrad)" dot={false} />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Row 3: Product ID Comparison + Revenue */}
+      {/* Row 2: Product Comparison + Revenue — side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Product ID Comparison — NEW */}
+        {/* Product ID Comparison */}
         <div className="panel">
           <div className="panel-header">Product ID Comparison</div>
-
           <div className="flex flex-wrap gap-3 mt-2 mb-4">
             <select value={product1} onChange={(e) => setSku1(e.target.value)} className="input-field text-xs flex-1 min-w-[100px]">
               {allSkus.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -215,7 +215,7 @@ export default function AnalyticsPage() {
         {/* Top Revenue Products */}
         <div className="panel">
           <div className="panel-header">Top 10 Products by Revenue</div>
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={340}>
             <BarChart data={data.revenue} layout="vertical" margin={{ top: 4, right: 20, bottom: 0, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" horizontal={false} />
               <XAxis type="number" tick={{ fontSize: 9, fill: '#9ca3af' }} />
@@ -227,7 +227,7 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Row 4: Warehouse Breakdown (Replaced Radar with useful BarChart) */}
+      {/* Row 3: Warehouse Performance — full width */}
       <div className="panel">
         <div className="panel-header">Warehouse Performance Matrix</div>
         <ResponsiveContainer width="100%" height={300}>
@@ -245,7 +245,7 @@ export default function AnalyticsPage() {
         </ResponsiveContainer>
       </div>
 
-      {/* Row 5: Heatmap — Improved */}
+      {/* Row 4: Heatmap — full width */}
       <div className="panel">
         <div className="panel-header">Inventory Heatmap (Product ID × Warehouse)</div>
         <div className="overflow-x-auto mt-3">

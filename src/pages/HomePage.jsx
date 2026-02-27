@@ -7,7 +7,7 @@ const globalPages = [
   { title: 'Home', path: '/', tags: ['dashboard', 'kpi', 'overview', 'quick access'] },
   { title: 'Alerts', path: '/alerts', tags: ['notifications', 'warnings', 'stockout', 'recent alerts'] },
   { title: 'Inventory', path: '/inventory', tags: ['stock', 'items', 'products', 'search', 'map', 'inventory & predictions', 'warehouse locations', 'demand predictor'] },
-  { title: 'QR Scan', path: '/scan', tags: ['barcode', 'scanner', 'camera', 'check-in', 'scan item', 'scan new item'] },
+  { title: 'QR Scan', path: '/scan', tags: ['barcode', 'scanner', 'camera', 'check-in', 'scan item', 'scan new item', 'return', 'returns'] },
   { title: 'Analytics', path: '/analytics', tags: ['charts', 'graphs', 'revenue', 'sku comparison', 'heatmap', 'supply chain kpis', 'warehouse comparison', 'top products by revenue', 'stock health overview', 'units sold vs inventory'] },
   { title: 'Live Feed', path: '/live-feed', tags: ['camera', 'vision', 'engine', 'detection', 'live computer vision', 'recent scan log'] },
   { title: 'ML Insights', path: '/ml-insights', tags: ['predictions', 'demand forecasting', 'risk', 'machine learning demand predictor', 'top stockout risk products'] },
@@ -44,6 +44,7 @@ export default function HomePage() {
     { label: 'Items Tracked', value: kpis.total_items_tracked?.toLocaleString(), change: '+12%', up: true, color: 'text-brand-600' },
     { label: 'Stockout Events', value: kpis.stockout_events, change: kpis.stockout_events > 0 ? 'Needs attention' : '0', up: false, color: 'text-danger-500' },
     { label: 'Avg Inventory Level', value: kpis.average_inventory_level?.toLocaleString(), change: 'Stable', up: true, color: 'text-info-500' },
+    { label: 'Returns Today', value: kpis.returns_today || 0, change: kpis.returns_today > 0 ? `${kpis.returns_today} processed` : 'None', up: true, color: 'text-amber-500' },
   ] : [];
 
   const quickLinks = [
@@ -100,7 +101,7 @@ export default function HomePage() {
 
       {/* KPI Cards */}
       {kpis && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {metrics.map((m, i) => (
             <div key={i} className="panel">
               <div className="text-xs text-surface-500 font-medium mb-1">{m.label}</div>
@@ -112,24 +113,6 @@ export default function HomePage() {
               </div>
             </div>
           ))}
-        </div>
-      )}
-
-      {/* Demand Bar Chart */}
-      {chartData && (
-        <div className="panel mt-6">
-          <div className="panel-header mb-4">Inventory vs Reorder Point (Top 10 by Demand)</div>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: -8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-              <XAxis dataKey="product_id" tick={{ fontSize: 9, fill: '#9ca3af' }} angle={-30} textAnchor="end" height={50} />
-              <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} />
-              <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '11px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} />
-              <Legend wrapperStyle={{ fontSize: '10px' }} />
-              <Bar dataKey="inventory" name="Inventory" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="reorder_point" name="Reorder Point" fill="#ef4444" radius={[4, 4, 0, 0]} opacity={0.7} />
-            </BarChart>
-          </ResponsiveContainer>
         </div>
       )}
 
@@ -147,6 +130,24 @@ export default function HomePage() {
           ))}
         </div>
       </div>
+
+      {/* Demand Bar Chart */}
+      {chartData && (
+        <div className="panel">
+          <div className="panel-header mb-4">Inventory vs Reorder Point (Top 10 by Demand)</div>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: -8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+              <XAxis dataKey="product_id" tick={{ fontSize: 9, fill: '#9ca3af' }} angle={-30} textAnchor="end" height={50} />
+              <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} />
+              <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '11px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} />
+              <Legend wrapperStyle={{ fontSize: '10px' }} />
+              <Bar dataKey="inventory" name="Inventory" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="reorder_point" name="Reorder Point" fill="#ef4444" radius={[4, 4, 0, 0]} opacity={0.7} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* System Status */}
       <div className="panel">

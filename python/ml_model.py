@@ -37,7 +37,7 @@ def train_model(best_k: float = 1.0):
 
     # 1. Load
     df = pd.read_csv(CSV_PATH)
-    df['Date'] = pd.to_datetime(df['Date'], format="%d-%m-%Y", dayfirst=True)
+    df['Date'] = pd.to_datetime(df['Date'], format='mixed', dayfirst=True)
     df = df.sort_values(['Product_ID', 'Warehouse_ID', 'Date'])
 
     # 2. Feature Engineering
