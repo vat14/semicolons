@@ -1,0 +1,96 @@
+// Mock fleet data for Logistics page
+
+export const fleetTrucks = [
+  {
+    id: 'TRK-101',
+    driver: 'Ramirez, J.',
+    status: 'in-transit',
+    lat: 28.6139,
+    lng: 77.209,
+    temp: 2.4,
+    cargo: 'Servo Motor Units',
+    eta: '14:35',
+  },
+  {
+    id: 'TRK-102',
+    driver: 'Chen, L.',
+    status: 'delayed',
+    lat: 19.076,
+    lng: 72.8777,
+    temp: -1.2,
+    cargo: 'Hydraulic Cylinders',
+    eta: '16:10',
+  },
+  {
+    id: 'TRK-103',
+    driver: 'Patel, A.',
+    status: 'in-transit',
+    lat: 12.9716,
+    lng: 77.5946,
+    temp: 3.1,
+    cargo: 'PLC Controllers',
+    eta: '11:50',
+  },
+  {
+    id: 'TRK-104',
+    driver: 'Novak, S.',
+    status: 'at-dock',
+    lat: 22.5726,
+    lng: 88.3639,
+    temp: 0.8,
+    cargo: 'Steel Bearing Packs',
+    eta: 'Docked',
+  },
+  {
+    id: 'TRK-105',
+    driver: 'Kim, D.',
+    status: 'delayed',
+    lat: 17.385,
+    lng: 78.4867,
+    temp: 4.6,
+    cargo: 'Raw Steel Coils',
+    eta: '18:45',
+  },
+];
+
+export const delayWarnings = [
+  {
+    id: 'DW-001',
+    truckId: 'TRK-102',
+    reason: 'Route congestion on NH-48 — 45 min delay predicted',
+    severity: 'high',
+    predictedDelay: 45,
+    timestamp: '10:12',
+  },
+  {
+    id: 'DW-002',
+    truckId: 'TRK-105',
+    reason: 'Checkpoint inspection at Outer Ring — 20 min delay predicted',
+    severity: 'medium',
+    predictedDelay: 20,
+    timestamp: '09:58',
+  },
+  {
+    id: 'DW-003',
+    truckId: 'TRK-101',
+    reason: 'Weather advisory: fog reducing speed by ~15%',
+    severity: 'low',
+    predictedDelay: 12,
+    timestamp: '08:30',
+  },
+];
+
+export const dockThroughput = [
+  { time: '06:00', trucks: 2, avgWait: 12 },
+  { time: '07:00', trucks: 5, avgWait: 18 },
+  { time: '08:00', trucks: 8, avgWait: 32 },
+  { time: '09:00', trucks: 12, avgWait: 45 },
+  { time: '10:00', trucks: 9, avgWait: 28 },
+  { time: '11:00', trucks: 6, avgWait: 15 },
+  { time: '12:00', trucks: 4, avgWait: 10 },
+  { time: '13:00', trucks: 7, avgWait: 22 },
+  { time: '14:00', trucks: 11, avgWait: 38 },
+  { time: '15:00', trucks: 10, avgWait: 35 },
+  { time: '16:00', trucks: 8, avgWait: 25 },
+  { time: '17:00', trucks: 3, avgWait: 8 },
+];
