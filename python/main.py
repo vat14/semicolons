@@ -23,7 +23,7 @@ app.add_middleware(
 # ==========================================
 # LOAD DATA FROM CSV (bypasses MongoDB SSL issues on Python 3.14)
 # ==========================================
-CSV_PATH = os.path.join(os.path.dirname(__file__), "supply_chain_dataset1.csv")
+CSV_PATH = os.path.join(os.path.dirname(__file__), "inventory_analysis.csv")
 
 _data_cache: list[dict] = []
 
@@ -208,6 +208,94 @@ def get_selling_insights():
     """Returns fast-selling and slow-selling SKU analysis with recommendations."""
     result = ml_model.get_selling_insights() if hasattr(ml_model, 'get_selling_insights') else {"fast_movers": [], "slow_movers": []}
     return result
+
+@app.get("/api/inventory/chart-data")
+def get_chart_data():
+    """Pre-aggregated data for all 6 inventory charts."""
+    if ml_model._df is None:
+        raise HTTPException(status_code=503, detail="ML model not trained yet")
+    df = ml_model._df
+
+    # 1. Inventory Level vs Reorder Point (latest per SKU, top 15)
+    latest = df.sort_values('Date').groupby('SKU_ID').last().reset_index()
+    top_skus = latest.sort_values('Inventory_Level', ascending=False).head(15)
+    inv_vs_rop = [
+        {"sku": row['SKU_ID'], "inventory": int(row['Inventory_Level']),
+         "reorder_point": round(float(row['Dynamic_ROP']), 0)}
+        for _, row in top_skus.iterrows()
+    ]
+
+    # 2. Units Sold over time (daily aggregate)
+    daily = df.groupby(df['Date'].dt.strftime('%Y-%m-%d')).agg(
+        total_sold=('Units_Sold', 'sum'),
+        avg_inventory=('Inventory_Level', 'mean'),
+    ).reset_index().rename(columns={'Date': 'date'})
+    daily = daily.tail(30)  # last 30 days
+    time_series = [
+        {"date": row['date'], "sold": int(row['total_sold']),
+         "avg_inv": round(float(row['avg_inventory']), 0)}
+        for _, row in daily.iterrows()
+    ]
+
+    # 3. Stock Health Donut
+    low = int((latest['Inventory_Level'] < latest['Dynamic_ROP']).sum())
+    healthy = int(((latest['Inventory_Level'] >= latest['Dynamic_ROP']) &
+                   (latest['Inventory_Level'] <= latest['Dynamic_ROP'] * 3)).sum())
+    over = int((latest['Inventory_Level'] > latest['Dynamic_ROP'] * 3).sum())
+    stockout = int((latest['Inventory_Level'] <= 0).sum())
+    stock_health = [
+        {"name": "Low Stock", "value": low, "color": "#ef4444"},
+        {"name": "Healthy", "value": healthy, "color": "#22c55e"},
+        {"name": "Overstocked", "value": over, "color": "#f59e0b"},
+        {"name": "Stockout", "value": stockout, "color": "#dc2626"},
+    ]
+
+    # 4. Top 10 Revenue SKUs
+    latest['Revenue'] = latest['Units_Sold'] * latest['Unit_Cost']
+    top_rev = latest.sort_values('Revenue', ascending=False).head(10)
+    revenue = [
+        {"sku": row['SKU_ID'], "revenue": round(float(row['Revenue']), 2),
+         "units": int(row['Units_Sold'])}
+        for _, row in top_rev.iterrows()
+    ]
+
+    # 5. Warehouse Comparison
+    wh_stats = df.groupby('Warehouse_ID').agg(
+        avg_inv=('Inventory_Level', 'mean'),
+        total_sold=('Units_Sold', 'sum'),
+        stockouts=('Stockout_Flag', 'sum'),
+        avg_lead=('Supplier_Lead_Time_Days', 'mean'),
+        fill_rate=('Inventory_Level', lambda x: (x > 0).mean() * 100),
+    ).reset_index()
+    warehouse = [
+        {"warehouse": row['Warehouse_ID'],
+         "avg_inventory": round(float(row['avg_inv']), 0),
+         "total_sold": int(row['total_sold']),
+         "stockouts": int(row['stockouts']),
+         "avg_lead_time": round(float(row['avg_lead']), 1),
+         "fill_rate": round(float(row['fill_rate']), 1)}
+        for _, row in wh_stats.iterrows()
+    ]
+
+    # 6. Heatmap (SKU × Warehouse grid) — top 10 SKUs × all warehouses
+    top_10_skus = latest.sort_values('Units_Sold', ascending=False).head(10)['SKU_ID'].tolist()
+    heatmap_df = df[df['SKU_ID'].isin(top_10_skus)]
+    heat = heatmap_df.groupby(['SKU_ID', 'Warehouse_ID'])['Inventory_Level'].mean().reset_index()
+    heatmap = [
+        {"sku": row['SKU_ID'], "warehouse": row['Warehouse_ID'],
+         "level": round(float(row['Inventory_Level']), 0)}
+        for _, row in heat.iterrows()
+    ]
+
+    return {
+        "inv_vs_rop": inv_vs_rop,
+        "time_series": time_series,
+        "stock_health": stock_health,
+        "revenue": revenue,
+        "warehouse": warehouse,
+        "heatmap": heatmap,
+    }
+
 
 # ==========================================
 # VISION ENGINE ENDPOINTS

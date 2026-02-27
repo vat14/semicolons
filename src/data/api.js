@@ -82,3 +82,9 @@ export async function fetchSellingInsights() {
   if (!res.ok) throw new Error(`Selling insights fetch failed: ${res.status}`);
   return res.json();
 }
+
+export async function fetchChartData() {
+  const res = await fetch(`${API_BASE}/api/inventory/chart-data`);
+  if (!res.ok) throw new Error(`Chart data fetch failed: ${res.status}`);
+  return res.json();
+}
