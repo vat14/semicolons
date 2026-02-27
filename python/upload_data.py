@@ -8,7 +8,7 @@ def upload_new_dataset():
     print("Loading NEW Kaggle dataset...")
     try:
         # Update this filename to whatever you saved the new CSV as
-        df = pd.read_csv("supply_chain_dataset1.csv") 
+        df = pd.read_csv("inventory_analysis.csv") 
         
         # Take a random sample for speed during the hackathon
         df = df.sample(n=5000, random_state=42)

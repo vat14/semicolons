@@ -1,291 +1,226 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchInventory, predictStockout, searchInventory } from '../data/api';
-import WarehouseMap from '../components/WarehouseMap';
-import ScanStation from '../components/ScanStation';
-import { initialInventory } from '../data/mockInventory';
+import { useState, useEffect, useCallback } from 'react';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+import { searchInventory, fetchAvailableInputs, predictDemand } from '../data/api';
+
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+});
+
+const warehouseLocations = [
+  { id: 'WH-001', name: 'Mumbai Central', lat: 19.076, lng: 72.8777 },
+  { id: 'WH-002', name: 'Delhi NCR', lat: 28.7041, lng: 77.1025 },
+  { id: 'WH-003', name: 'Bangalore Hub', lat: 12.9716, lng: 77.5946 },
+  { id: 'WH-004', name: 'Chennai Port', lat: 13.0827, lng: 80.2707 },
+];
+
+// Debounce hook
+function useDebounce(value, delay) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debounced;
+}
 
 export default function InventoryPage() {
-  // Existing local state for warehouse map + scan station demo
-  const [inventory, setInventory] = useState(initialInventory);
-  const [pulsingZone, setPulsingZone] = useState(null);
-  const pulseTimer = useRef(null);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
 
-  // Live API state
-  const [liveData, setLiveData] = useState([]);
-  const [liveCount, setLiveCount] = useState(0);
-  const [liveLoading, setLiveLoading] = useState(true);
-  const [liveError, setLiveError] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState(null);
-  const searchTimer = useRef(null);
-
-  // Stockout predictor state
-  const [predForm, setPredForm] = useState({
-    inventory_levels: '',
-    supplier_lead_times: '',
-    units_sold: '',
-    forecasted_demand: '',
-  });
+  // Prediction form
+  const [inputs, setInputs] = useState({ skus: [], warehouses: [] });
+  const [form, setForm] = useState({ sku_id: '', warehouse_id: '', promotion: 0, lead_time: 14 });
   const [prediction, setPrediction] = useState(null);
   const [predLoading, setPredLoading] = useState(false);
 
+  const debouncedQuery = useDebounce(query, 300);
+
   useEffect(() => {
-    fetchInventory(50)
-      .then((res) => {
-        setLiveData(res.data);
-        setLiveCount(res.count);
-        setLiveLoading(false);
-      })
-      .catch((err) => {
-        setLiveError(err.message);
-        setLiveLoading(false);
-      });
+    fetchAvailableInputs().then(setInputs).catch(() => {});
   }, []);
 
-  const handleScan = useCallback((itemId, mode) => {
-    setInventory((prev) =>
-      prev.map((item) => {
-        if (item.id === itemId) {
-          const newStock = mode === 'add' ? item.stock + 1 : Math.max(0, item.stock - 1);
-          return { ...item, stock: newStock };
-        }
-        return item;
-      })
-    );
-    const item = inventory.find((i) => i.id === itemId);
-    if (item) {
-      if (pulseTimer.current) clearTimeout(pulseTimer.current);
-      setPulsingZone(item.zone);
-      pulseTimer.current = setTimeout(() => setPulsingZone(null), 3000);
+  useEffect(() => {
+    if (inputs.skus.length && !form.sku_id) {
+      setForm((f) => ({ ...f, sku_id: inputs.skus[0], warehouse_id: inputs.warehouses[0] }));
     }
-  }, [inventory]);
+  }, [inputs]);
+
+  useEffect(() => {
+    if (!debouncedQuery.trim()) { setResults([]); return; }
+    setLoading(true);
+    searchInventory(debouncedQuery)
+      .then((r) => { setResults(r.results || []); setShowDropdown(true); })
+      .catch(() => setResults([]))
+      .finally(() => setLoading(false));
+  }, [debouncedQuery]);
 
   const handlePredict = async (e) => {
     e.preventDefault();
     setPredLoading(true);
-    setPrediction(null);
     try {
-      const payload = {
-        inventory_levels: parseInt(predForm.inventory_levels) || 0,
-        supplier_lead_times: parseInt(predForm.supplier_lead_times) || 0,
-        units_sold: parseInt(predForm.units_sold) || 0,
-        forecasted_demand: parseInt(predForm.forecasted_demand) || 0,
-      };
-      const res = await predictStockout(payload);
-      setPrediction(res.prediction);
+      const res = await predictDemand(form);
+      setPrediction(res);
     } catch (err) {
-      setPrediction({ risk_classification: 'Error', confidence_score: 0, suggested_action: err.message });
-    } finally {
-      setPredLoading(false);
+      setPrediction({ error: err.message });
     }
-  };
-
-  // Determine which data to show
-  const displayData = searchResults ? searchResults.data : liveData;
-  const columns = displayData.length > 0 ? Object.keys(displayData[0]).slice(0, 8) : [];
-
-  const riskColor = {
-    'High Risk of Stockout': { bg: 'bg-warning-red/10 border-warning-red/30', text: 'text-warning-red' },
-    'Moderate Risk': { bg: 'bg-accent-amber/10 border-accent-amber/30', text: 'text-accent-amber' },
-    'Low Risk / Overstocked': { bg: 'bg-safe-green/10 border-safe-green/30', text: 'text-safe-green' },
+    setPredLoading(false);
   };
 
   return (
-    <div className="p-6 flex flex-col gap-4">
-      {/* Page Header */}
+    <div className="p-6 space-y-5 animate-fade-in">
       <div>
-        <h2 className="text-lg font-bold text-gray-100">Warehouse & Inventory</h2>
-        <p className="text-xs text-industrial-300 mt-0.5">Live inventory data from MongoDB + Warehouse map + ML stockout predictor</p>
+        <h2 className="text-xl font-bold text-surface-900">Inventory & Predictions</h2>
+        <p className="text-sm text-surface-500 mt-0.5">Search products, view warehouse map, and predict demand</p>
       </div>
 
-      {/* Product Search Bar */}
-      <div className="panel">
+      {/* Search Bar */}
+      <div className="panel relative">
         <div className="relative">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-industrial-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
             type="text"
-            value={searchQuery}
-            onChange={(e) => {
-              const q = e.target.value;
-              setSearchQuery(q);
-              if (searchTimer.current) clearTimeout(searchTimer.current);
-              if (!q.trim()) { setSearchResults(null); return; }
-              searchTimer.current = setTimeout(() => {
-                searchInventory(q).then(setSearchResults).catch(() => {});
-              }, 300);
-            }}
-            placeholder="Search products by SKU, warehouse, region, date..."
-            className="w-full bg-industrial-900 border border-industrial-600 rounded-lg pl-10 pr-4 py-2.5
-                       text-xs text-gray-100 placeholder:text-industrial-400
-                       focus:outline-none focus:border-accent-cyan/50 focus:ring-1 focus:ring-accent-cyan/20
-                       transition-all duration-200"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => results.length && setShowDropdown(true)}
+            placeholder="Search by SKU, product name, warehouse..."
+            className="input-field w-full pl-11 text-base"
           />
-          {searchQuery && (
-            <button onClick={() => { setSearchQuery(''); setSearchResults(null); }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-industrial-400 hover:text-gray-100 text-xs">
-              ✕
-            </button>
-          )}
-        </div>
-        {searchResults && (
-          <div className="mt-2 text-[10px] text-industrial-300">
-            Found <span className="text-accent-cyan font-bold">{searchResults.count}</span> results for "{searchQuery}"
-          </div>
-        )}
-      </div>
-
-      {/* Row 1: Warehouse Map + Scan Station */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <WarehouseMap inventory={inventory} pulsingZone={pulsingZone} />
-        <ScanStation inventory={inventory} onScan={handleScan} />
-      </div>
-
-      {/* Row 2: Live Inventory Table */}
-      <div className="panel">
-        <div className="panel-header">
-          <svg className="w-4 h-4 text-accent-cyan" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7C5 4 4 5 4 7z" />
-          </svg>
-          Live Inventory Data
-          {(searchResults ? searchResults.count : liveCount) > 0 && (
-            <span className="ml-auto text-[10px] font-mono text-accent-cyan bg-accent-cyan/10 px-2 py-0.5 rounded">
-              {searchResults ? searchResults.count : liveCount} records
-            </span>
+          {query && (
+            <button onClick={() => { setQuery(''); setResults([]); setShowDropdown(false); }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600 text-sm">✕</button>
           )}
         </div>
 
-        {liveLoading && (
-          <div className="text-center text-industrial-300 text-xs py-8 animate-pulse">
-            Fetching inventory from MongoDB…
+        {/* Dropdown Results */}
+        {showDropdown && results.length > 0 && (
+          <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-surface-200 rounded-xl shadow-elevated z-50 max-h-72 overflow-y-auto">
+            {results.slice(0, 20).map((r, i) => (
+              <div key={i} className="px-4 py-3 hover:bg-brand-50 border-b border-surface-100 last:border-0 cursor-pointer transition-colors"
+                onClick={() => setShowDropdown(false)}>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-surface-800">{r.SKU_ID}</span>
+                  <span className="badge-neutral">{r.Warehouse_ID}</span>
+                </div>
+                <div className="flex gap-4 mt-1 text-xs text-surface-500">
+                  <span>Stock: <b className="text-surface-700">{r.Inventory_Level}</b></span>
+                  <span>Sold: <b className="text-surface-700">{r.Units_Sold}</b></span>
+                  <span>Cost: <b className="text-surface-700">₹{r.Unit_Cost}</b></span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
-        {liveError && (
-          <div className="text-center text-warning-red text-xs py-8">
-            ⚠️ Backend offline — {liveError}
-          </div>
-        )}
-        {!liveLoading && !liveError && displayData.length > 0 && (
-          <div className="overflow-x-auto overflow-y-auto max-h-[300px] rounded-lg border border-industrial-600">
-            <table className="w-full text-[11px] text-left">
-              <thead className="bg-industrial-700 sticky top-0 z-10">
-                <tr>
-                  {columns.map((col) => (
-                    <th key={col} className="px-3 py-2 text-industrial-200 uppercase tracking-wider font-semibold whitespace-nowrap">
-                      {col}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {displayData.map((row, i) => (
-                  <tr key={i} className="border-t border-industrial-600/50 hover:bg-industrial-700/30 transition-colors">
-                    {columns.map((col) => (
-                      <td key={col} className="px-3 py-2 text-industrial-100 whitespace-nowrap font-mono">
-                        {typeof row[col] === 'number' ? row[col].toLocaleString() : String(row[col] ?? '—')}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {showDropdown && query && results.length === 0 && !loading && (
+          <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-surface-200 rounded-xl shadow-elevated z-50 px-4 py-6 text-center text-sm text-surface-400">
+            No results for "{query}"
           </div>
         )}
       </div>
 
-      {/* Row 3: Stockout Predictor */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Prediction Form */}
+      {/* Two column: Map + Predictor */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Warehouse Map */}
+        <div className="panel" style={{ minHeight: '380px' }}>
+          <div className="panel-header">
+            <svg className="w-4 h-4 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+            </svg>
+            Warehouse Locations
+          </div>
+          <div className="flex-1 rounded-lg overflow-hidden border border-surface-200" style={{ height: '320px' }}>
+            <MapContainer center={[20.5937, 78.9629]} zoom={5} style={{ height: '100%', width: '100%' }}>
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; OpenStreetMap'
+              />
+              {warehouseLocations.map((wh) => (
+                <Marker key={wh.id} position={[wh.lat, wh.lng]}>
+                  <Popup><b>{wh.id}</b><br />{wh.name}</Popup>
+                </Marker>
+              ))}
+            </MapContainer>
+          </div>
+        </div>
+
+        {/* Demand Predictor */}
         <div className="panel">
           <div className="panel-header">
-            <svg className="w-4 h-4 text-accent-violet" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-4 h-4 text-info-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19 14.5" />
+                d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
             </svg>
-            ML Stockout Predictor
+            Demand Predictor
           </div>
 
-          <form onSubmit={handlePredict} className="space-y-3">
+          <form onSubmit={handlePredict} className="space-y-4 mt-3">
             <div className="grid grid-cols-2 gap-3">
-              {[
-                { key: 'inventory_levels', label: 'Inventory Levels', placeholder: 'e.g. 120' },
-                { key: 'supplier_lead_times', label: 'Supplier Lead Time (days)', placeholder: 'e.g. 7' },
-                { key: 'units_sold', label: 'Units Sold', placeholder: 'e.g. 80' },
-                { key: 'forecasted_demand', label: 'Forecasted Demand', placeholder: 'e.g. 150' },
-              ].map((f) => (
-                <div key={f.key}>
-                  <label className="text-[10px] uppercase tracking-widest text-industrial-300 mb-1 block">{f.label}</label>
-                  <input
-                    type="number"
-                    value={predForm[f.key]}
-                    onChange={(e) => setPredForm((p) => ({ ...p, [f.key]: e.target.value }))}
-                    placeholder={f.placeholder}
-                    required
-                    className="w-full bg-industrial-900 border border-industrial-500 rounded-lg px-3 py-2
-                               text-gray-100 text-xs font-['JetBrains_Mono']
-                               placeholder:text-industrial-300
-                               focus:outline-none focus:border-accent-cyan/50 focus:ring-1 focus:ring-accent-cyan/20
-                               transition-all duration-200"
-                  />
-                </div>
-              ))}
+              <div>
+                <label className="text-xs font-medium text-surface-600 block mb-1">SKU</label>
+                <select value={form.sku_id} onChange={(e) => setForm({ ...form, sku_id: e.target.value })}
+                  className="input-field w-full text-sm">
+                  {inputs.skus.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-surface-600 block mb-1">Warehouse</label>
+                <select value={form.warehouse_id} onChange={(e) => setForm({ ...form, warehouse_id: e.target.value })}
+                  className="input-field w-full text-sm">
+                  {inputs.warehouses.map((w) => <option key={w} value={w}>{w}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-surface-600 block mb-1">Lead Time (days)</label>
+                <input type="number" value={form.lead_time} onChange={(e) => setForm({ ...form, lead_time: parseInt(e.target.value) || 14 })}
+                  className="input-field w-full text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-surface-600 block mb-1">Promotion?</label>
+                <select value={form.promotion} onChange={(e) => setForm({ ...form, promotion: parseInt(e.target.value) })}
+                  className="input-field w-full text-sm">
+                  <option value={0}>No</option>
+                  <option value={1}>Yes</option>
+                </select>
+              </div>
             </div>
-            <button
-              type="submit"
-              disabled={predLoading}
-              className="btn-primary w-full disabled:opacity-50"
-            >
-              {predLoading ? 'Analyzing…' : '🔮 Predict Stockout Risk'}
+            <button type="submit" disabled={predLoading} className="btn-primary w-full">
+              {predLoading ? 'Predicting...' : '🔮 Predict Demand'}
             </button>
           </form>
-        </div>
 
-        {/* Prediction Result */}
-        <div className="panel flex flex-col justify-center">
-          <div className="panel-header">
-            <svg className="w-4 h-4 text-accent-violet" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            Prediction Result
-          </div>
-
-          {!prediction && !predLoading && (
-            <div className="flex flex-col items-center justify-center flex-1 text-industrial-400 py-8">
-              <svg className="w-10 h-10 mb-2 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                  d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0" />
-              </svg>
-              <p className="text-xs">Fill in the form and click predict</p>
-            </div>
-          )}
-
-          {predLoading && (
-            <div className="flex items-center justify-center flex-1 py-8">
-              <span className="text-xs text-industrial-300 animate-pulse">Running ML model…</span>
-            </div>
-          )}
-
-          {prediction && (
-            <div className={`rounded-lg border p-4 space-y-3 ${
-              (riskColor[prediction.risk_classification] || riskColor['Moderate Risk']).bg
-            }`}>
-              <div className="text-center">
-                <p className={`text-lg font-bold ${
-                  (riskColor[prediction.risk_classification] || riskColor['Moderate Risk']).text
-                }`}>
-                  {prediction.risk_classification}
-                </p>
-                <p className="text-[10px] text-industrial-300 mt-1">
-                  Confidence: <span className="font-mono text-accent-cyan">{(prediction.confidence_score * 100).toFixed(0)}%</span>
-                </p>
+          {prediction && !prediction.error && (
+            <div className="mt-4 bg-surface-50 rounded-xl border border-surface-200 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-surface-500">{prediction.sku_id} @ {prediction.warehouse_id}</span>
+                <span className={`badge ${
+                  prediction.risk_level === 'HIGH' ? 'badge-danger' : prediction.risk_level === 'MODERATE' ? 'badge-warning' : 'badge-success'
+                }`}>{prediction.risk_level} Risk</span>
               </div>
-              <div className="bg-black/20 rounded-lg px-3 py-2">
-                <p className="text-[10px] uppercase tracking-wider text-industrial-300 mb-0.5">Suggested Action</p>
-                <p className="text-xs font-semibold text-gray-100">{prediction.suggested_action}</p>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <div className="text-lg font-bold text-info-600">{prediction.predicted_daily_demand}</div>
+                  <div className="text-[9px] text-surface-400 uppercase">Predicted</div>
+                </div>
+                <div>
+                  <div className="text-lg font-bold text-brand-600">{prediction.dynamic_reorder_point}</div>
+                  <div className="text-[9px] text-surface-400 uppercase">Reorder Pt</div>
+                </div>
+                <div>
+                  <div className="text-lg font-bold text-surface-800">{prediction.current_inventory}</div>
+                  <div className="text-[9px] text-surface-400 uppercase">Stock</div>
+                </div>
+              </div>
+              <div className="bg-white rounded-lg border border-surface-200 p-2.5 text-xs text-surface-600">
+                💡 {prediction.suggested_action}
               </div>
             </div>
           )}
