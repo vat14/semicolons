@@ -1,0 +1,28 @@
+/* Additional styles if needed */
+.highlight {
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.status-success {
+    background: #00aa00;
+    color: white;
+}
+
+.status-warning {
+    background: #ffaa00;
+    color: black;
+}

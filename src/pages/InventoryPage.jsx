@@ -81,8 +81,8 @@ export default function InventoryPage() {
       </div>
 
       {/* Search Bar */}
-      <div className="panel relative z-50">
-        <div className="relative z-50">
+      <div className="panel relative z-[100] mb-5">
+        <div className="relative z-[100]">
           <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
@@ -102,7 +102,7 @@ export default function InventoryPage() {
 
         {/* Dropdown Results */}
         {showDropdown && results.length > 0 && (
-          <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-surface-200 rounded-xl shadow-elevated z-50 max-h-72 overflow-y-auto">
+          <div className="absolute left-0 right-0 top-[110%] bg-white border border-surface-200 rounded-xl shadow-elevated z-[100] max-h-72 overflow-y-auto">
             {results.slice(0, 20).map((r, i) => (
               <div key={i} className="px-4 py-3 hover:bg-brand-50 border-b border-surface-100 last:border-0 cursor-pointer transition-colors"
                 onClick={() => {
@@ -124,14 +124,14 @@ export default function InventoryPage() {
           </div>
         )}
         {showDropdown && query && results.length === 0 && !loading && (
-          <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-surface-200 rounded-xl shadow-elevated z-50 px-4 py-6 text-center text-sm text-surface-400">
+          <div className="absolute left-0 right-0 top-[110%] bg-white border border-surface-200 rounded-xl shadow-elevated z-[100] px-4 py-6 text-center text-sm text-surface-400">
             No results for "{query}"
           </div>
         )}
       </div>
 
       {/* Two column: Map + Predictor */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 relative z-0">
         {/* Warehouse Map */}
         <div className="panel" style={{ minHeight: '380px' }}>
           <div className="panel-header">

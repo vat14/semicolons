@@ -118,29 +118,14 @@ export default function AnalyticsPage() {
         <p className="text-sm text-surface-500 mt-0.5">Visual breakdown of inventory health, trends, revenue & warehouse performance</p>
       </div>
 
-      {/* Row 1: Inventory vs ROP + Stock Health */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <div className="panel lg:col-span-2">
-          <div className="panel-header">Inventory Level vs Reorder Point</div>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={data.inv_vs_rop} margin={{ top: 8, right: 16, bottom: 0, left: -8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-              <XAxis dataKey="product_id" tick={{ fontSize: 9, fill: '#9ca3af' }} angle={-30} textAnchor="end" height={50} />
-              <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} />
-              <Tooltip contentStyle={tooltipStyle} />
-              <Legend wrapperStyle={{ fontSize: '10px' }} />
-              <Bar dataKey="inventory" name="Inventory" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="reorder_point" name="Reorder Point" fill="#ef4444" radius={[4, 4, 0, 0]} opacity={0.7} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="panel">
-          <div className="panel-header">Stock Health</div>
-          <ResponsiveContainer width="100%" height={220}>
+      {/* Row 1: Stock Health */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="panel col-span-1 lg:col-span-2">
+          <div className="panel-header">Stock Health Overview</div>
+          <ResponsiveContainer width="100%" height={250}>
             <PieChart margin={{ top: 25, right: 50, bottom: 25, left: 50 }}>
               <Pie data={data.stock_health.filter((d) => d.value > 0)} cx="50%" cy="50%"
-                innerRadius={30} outerRadius={50} paddingAngle={3} dataKey="value"
+                innerRadius={60} outerRadius={90} paddingAngle={4} dataKey="value"
                 label={({ name, value }) => `${name}: ${value}`} labelLine={true}>
                 {data.stock_health.filter((d) => d.value > 0).map((entry, i) => (
                   <Cell key={i} fill={entry.color} stroke="none" />
@@ -149,11 +134,11 @@ export default function AnalyticsPage() {
               <Tooltip contentStyle={tooltipStyle} />
             </PieChart>
           </ResponsiveContainer>
-          <div className="flex flex-wrap justify-center gap-3 mt-2">
+          <div className="flex flex-wrap justify-center gap-5 mt-4">
             {data.stock_health.map((d, i) => (
-              <div key={i} className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full" style={{ background: d.color }} />
-                <span className="text-[10px] text-surface-500">{d.name} ({d.value})</span>
+              <div key={i} className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ background: d.color }} />
+                <span className="text-xs text-surface-600 font-medium">{d.name} ({d.value})</span>
               </div>
             ))}
           </div>

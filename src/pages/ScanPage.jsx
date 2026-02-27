@@ -11,8 +11,19 @@ export default function ScanPage() {
   const handleScan = async (item, mode) => {
     try {
       // 1. Persist to Backend DB
-      await scanInventoryItem(item.id, mode);
+      const result = await scanInventoryItem(item.id, mode);
       
+      // Send scan data explicitly to 3D Iframe 
+      const iframe = document.querySelector('iframe[title="3D Warehouse Map"]');
+      if (iframe && iframe.contentWindow && iframe.contentWindow.handleExternalScan) {
+          const locationStr = result.warehouse_id ? `${result.warehouse_id}-A-1-1` : 'WH_1-A-1-1';
+          iframe.contentWindow.handleExternalScan({
+              id: item.id,
+              name: result.product_name || item.id,
+              assigned_location: locationStr
+          }, mode);
+      }
+
       // 2. Update local UI state array so WarehouseMap actively animates
       setInventory((prev) => {
         const found = prev.find((z) => z.id === item.id || z.name === item.id);
@@ -41,6 +52,20 @@ export default function ScanPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <ScanStation onScan={handleScan} />
         <WarehouseMap inventory={inventory} pulsingZone={pulsingZone} />
+      </div>
+
+      <div className="mt-8 panel overflow-hidden p-0 flex flex-col" style={{ height: '600px' }}>
+        <div className="p-4 border-b border-surface-200 bg-white">
+          <h3 className="font-semibold text-surface-800 flex items-center gap-2">
+            <span className="text-brand-500">🏭</span> 3D Warehouse Digital Twin
+          </h3>
+          <p className="text-xs text-surface-500">Interactive live view of all 5 warehouse sites</p>
+        </div>
+        <iframe 
+          src="/3d/index.html" 
+          className="w-full flex-1 border-0" 
+          title="3D Warehouse Map" 
+        />
       </div>
     </div>
   );

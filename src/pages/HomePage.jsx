@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchKPIs } from '../data/api';
+import { fetchKPIs, fetchChartData } from '../data/api';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const globalPages = [
   { title: 'Home', path: '/', tags: ['dashboard', 'kpi', 'overview', 'quick access'] },
@@ -15,12 +16,14 @@ const globalPages = [
 
 export default function HomePage() {
   const [kpis, setKpis] = useState(null);
+  const [chartData, setChartData] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchKPIs().then(setKpis).catch(() => {});
+    fetchChartData().then(d => setChartData(d?.inv_vs_rop)).catch(() => {});
   }, []);
 
   const handleSearch = (val) => {
@@ -109,6 +112,24 @@ export default function HomePage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Demand Bar Chart */}
+      {chartData && (
+        <div className="panel mt-6">
+          <div className="panel-header mb-4">Inventory vs Reorder Point (Top 10 by Demand)</div>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: -8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+              <XAxis dataKey="product_id" tick={{ fontSize: 9, fill: '#9ca3af' }} angle={-30} textAnchor="end" height={50} />
+              <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} />
+              <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '11px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} />
+              <Legend wrapperStyle={{ fontSize: '10px' }} />
+              <Bar dataKey="inventory" name="Inventory" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="reorder_point" name="Reorder Point" fill="#ef4444" radius={[4, 4, 0, 0]} opacity={0.7} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       )}
 

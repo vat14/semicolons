@@ -199,7 +199,12 @@ def update_inventory_csv(action: ManualScanAction):
             
             # Retrain model in background slightly delayed or skipped to keep API fast
             # For this deployment, we just update the cache. The next app reboot will retrain.
-            return {"status": "success", "new_level": row['Inventory_Level']}
+            return {
+                "status": "success", 
+                "new_level": row['Inventory_Level'],
+                "warehouse_id": str(row.get('Warehouse_ID', 'WH_1')),
+                "product_name": str(row.get('Product_ID', 'Unknown'))
+            }
             
     if not updated:
         raise HTTPException(status_code=404, detail="Product ID not found in dataset.")
@@ -275,9 +280,9 @@ def get_chart_data():
         raise HTTPException(status_code=503, detail="ML model not trained yet")
     df = ml_model._df
 
-    # 1. Inventory Level vs Reorder Point (latest per SKU, top 15)
+    # 1. Inventory Level vs Reorder Point (latest per SKU, top 10 by demand)
     latest = df.sort_values('Date').groupby('Product_ID').last().reset_index()
-    top_products = latest.sort_values('Inventory_Level', ascending=False).head(15)
+    top_products = latest.sort_values('Units_Sold', ascending=False).head(10)
     inv_vs_rop = [
         {"product_id": row['Product_ID'], "inventory": int(row['Inventory_Level']),
          "reorder_point": round(float(row['Dynamic_ROP']), 0)}
