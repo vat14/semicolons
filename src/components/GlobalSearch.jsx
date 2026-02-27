@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 const searchIndex = [
   { label: 'Home — Overview', path: '/', keywords: 'home overview dashboard kpi metrics status' },
   { label: 'Alerts — Stock & Fleet', path: '/alerts', keywords: 'alert low stock high stock overstock fleet delay warning' },
-  { label: 'Inventory & Predictions', path: '/inventory', keywords: 'inventory warehouse stock products sku items predict map' },
+  { label: 'Inventory & Predictions', path: '/inventory', keywords: 'inventory warehouse stock products product_id items predict map' },
   { label: 'QR Scan — In & Out', path: '/scan', keywords: 'scan qr barcode camera in out management' },
   { label: 'Analytics — Charts', path: '/analytics', keywords: 'analytics charts graphs bar pie donut heatmap radar revenue trend compare' },
   { label: 'Live Feed — Camera', path: '/live-feed', keywords: 'live feed camera engine vision scan log detect' },

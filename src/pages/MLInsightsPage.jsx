@@ -4,10 +4,10 @@ import { fetchMLSummary, predictDemand, fetchTopRisk, fetchAvailableInputs, fetc
 export default function MLInsightsPage() {
   const [summary, setSummary] = useState(null);
   const [topRisk, setTopRisk] = useState([]);
-  const [inputs, setInputs] = useState({ skus: [], warehouses: [] });
+  const [inputs, setInputs] = useState({ products: [], warehouses: [] });
   const [prediction, setPrediction] = useState(null);
   const [predLoading, setPredLoading] = useState(false);
-  const [form, setForm] = useState({ sku_id: '', warehouse_id: '', promotion: 0, lead_time: 14 });
+  const [form, setForm] = useState({ product_id: '', warehouse_id: '', promotion: 0, lead_time: 14 });
   const [sellingInsights, setSellingInsights] = useState(null);
 
   useEffect(() => {
@@ -18,8 +18,8 @@ export default function MLInsightsPage() {
   }, []);
 
   useEffect(() => {
-    if (inputs.skus.length && !form.sku_id) {
-      setForm((f) => ({ ...f, sku_id: inputs.skus[0], warehouse_id: inputs.warehouses[0] }));
+    if (inputs.products.length && !form.product_id) {
+      setForm((f) => ({ ...f, product_id: inputs.products[0], warehouse_id: inputs.warehouses[0] }));
     }
   }, [inputs]);
 
@@ -76,10 +76,10 @@ export default function MLInsightsPage() {
           <form onSubmit={handlePredict} className="space-y-4 mt-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-medium text-surface-600 block mb-1">SKU</label>
-                <select value={form.sku_id} onChange={(e) => setForm({ ...form, sku_id: e.target.value })}
+                <label className="text-xs font-medium text-surface-600 block mb-1">Product ID</label>
+                <select value={form.product_id} onChange={(e) => setForm({ ...form, product_id: e.target.value })}
                   className="input-field w-full text-sm">
-                  {inputs.skus.map((s) => <option key={s} value={s}>{s}</option>)}
+                  {inputs.products.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div>
@@ -111,7 +111,7 @@ export default function MLInsightsPage() {
           {prediction && !prediction.error && (
             <div className="mt-4 bg-surface-50 rounded-xl border border-surface-200 p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-surface-500">{prediction.sku_id} @ {prediction.warehouse_id}</span>
+                <span className="text-xs text-surface-500">{prediction.product_id} @ {prediction.warehouse_id}</span>
                 <span className={riskBadge(prediction.risk_level)}>{prediction.risk_level} Risk</span>
               </div>
               <div className="grid grid-cols-3 gap-3 text-center">
@@ -129,17 +129,17 @@ export default function MLInsightsPage() {
           )}
         </div>
 
-        {/* Top Risk SKUs */}
+        {/* Top Risk Products */}
         <div className="panel">
-          <div className="panel-header">Top Stockout Risk SKUs</div>
+          <div className="panel-header">Top Stockout Risk Products</div>
           <div className="mt-2 space-y-0.5">
             <div className="grid grid-cols-5 gap-2 px-3 py-2 text-[10px] uppercase tracking-wider text-surface-400 border-b border-surface-200 font-medium">
-              <span>SKU</span><span>Warehouse</span><span className="text-right">Inventory</span><span className="text-right">ROP</span><span className="text-right">Gap</span>
+              <span>Product ID</span><span>Warehouse</span><span className="text-right">Inventory</span><span className="text-right">ROP</span><span className="text-right">Gap</span>
             </div>
-            {topRisk.length === 0 && <div className="text-sm text-surface-400 text-center py-8">No at-risk SKUs 🎉</div>}
+            {topRisk.length === 0 && <div className="text-sm text-surface-400 text-center py-8">No at-risk Products 🎉</div>}
             {topRisk.map((item, i) => (
               <div key={i} className="grid grid-cols-5 gap-2 px-3 py-2.5 text-xs rounded hover:bg-surface-50 transition-colors border-b border-surface-100">
-                <span className="text-info-600 font-medium">{item.sku_id}</span>
+                <span className="text-info-600 font-medium">{item.product_id}</span>
                 <span className="text-surface-600">{item.warehouse_id}</span>
                 <span className="text-right text-surface-800 font-medium">{item.inventory_level}</span>
                 <span className="text-right text-brand-600 font-medium">{item.dynamic_rop}</span>
@@ -185,7 +185,7 @@ export default function MLInsightsPage() {
               {(sellingInsights.fast_movers || []).map((item, i) => (
                 <div key={i} className="bg-danger-50/40 border border-danger-100 rounded-lg p-3">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-bold text-surface-800">{item.sku_id}</span>
+                    <span className="text-xs font-bold text-surface-800">{item.product_id}</span>
                     <span className="badge-danger">{item.days_of_stock_left}d left</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 mt-2 text-center">
@@ -208,7 +208,7 @@ export default function MLInsightsPage() {
               {(sellingInsights.slow_movers || []).map((item, i) => (
                 <div key={i} className="bg-warning-50/40 border border-warning-100 rounded-lg p-3">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-bold text-surface-800">{item.sku_id}</span>
+                    <span className="text-xs font-bold text-surface-800">{item.product_id}</span>
                     <span className="badge-warning">{item.overstock_ratio}× overstock</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 mt-2 text-center">

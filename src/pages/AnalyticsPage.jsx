@@ -22,18 +22,18 @@ export default function AnalyticsPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [compareMetric, setCompareMetric] = useState('revenue');
-  const [sku1, setSku1] = useState('');
-  const [sku2, setSku2] = useState('');
+  const [product1, setSku1] = useState('');
+  const [product2, setSku2] = useState('');
 
   useEffect(() => {
     fetchChartData()
       .then((d) => {
         setData(d);
         setLoading(false);
-        // Set default SKUs for comparison
+        // Set default Products for comparison
         if (d.revenue?.length >= 2) {
-          setSku1(d.revenue[0].sku);
-          setSku2(d.revenue[1].sku);
+          setSku1(d.revenue[0].product_id);
+          setSku2(d.revenue[1].product_id);
         }
       })
       .catch(() => setLoading(false));
@@ -51,10 +51,10 @@ export default function AnalyticsPage() {
   );
 
   // Heatmap setup
-  const heatmapSkus = [...new Set(data.heatmap.map((h) => h.sku))];
+  const heatmapSkus = [...new Set(data.heatmap.map((h) => h.product_id))];
   const heatmapWhs = [...new Set(data.heatmap.map((h) => h.warehouse))];
   const heatLookup = {};
-  data.heatmap.forEach((h) => { heatLookup[`${h.sku}-${h.warehouse}`] = h.level; });
+  data.heatmap.forEach((h) => { heatLookup[`${h.product_id}-${h.warehouse}`] = h.level; });
   const maxLevel = Math.max(...data.heatmap.map((h) => h.level), 1);
 
   // Heatmap color function - more vibrant
@@ -81,22 +81,22 @@ export default function AnalyticsPage() {
       })
     : [];
 
-  // SKU Comparison data
-  const allSkus = data.inv_vs_rop.map((d) => d.sku);
-  const sku1Data = data.inv_vs_rop.find((d) => d.sku === sku1);
-  const sku2Data = data.inv_vs_rop.find((d) => d.sku === sku2);
-  const sku1Rev = data.revenue.find((d) => d.sku === sku1);
-  const sku2Rev = data.revenue.find((d) => d.sku === sku2);
+  // Product ID Comparison data
+  const allSkus = data.inv_vs_rop.map((d) => d.product_id);
+  const product1Data = data.inv_vs_rop.find((d) => d.product_id === product1);
+  const product2Data = data.inv_vs_rop.find((d) => d.product_id === product2);
+  const product1Rev = data.revenue.find((d) => d.product_id === product1);
+  const product2Rev = data.revenue.find((d) => d.product_id === product2);
 
   const comparisonData = [
-    { name: sku1 || 'SKU 1',
-      revenue: sku1Rev?.revenue || 0,
-      reorder_point: sku1Data?.reorder_point || 0,
-      inventory: sku1Data?.inventory || 0 },
-    { name: sku2 || 'SKU 2',
-      revenue: sku2Rev?.revenue || 0,
-      reorder_point: sku2Data?.reorder_point || 0,
-      inventory: sku2Data?.inventory || 0 },
+    { name: product1 || 'Product ID 1',
+      revenue: product1Rev?.revenue || 0,
+      reorder_point: product1Data?.reorder_point || 0,
+      inventory: product1Data?.inventory || 0 },
+    { name: product2 || 'Product ID 2',
+      revenue: product2Rev?.revenue || 0,
+      reorder_point: product2Data?.reorder_point || 0,
+      inventory: product2Data?.inventory || 0 },
   ];
 
   const metricLabels = { revenue: 'Revenue (₹)', reorder_point: 'Reorder Point', inventory: 'Inventory Level' };
@@ -116,7 +116,7 @@ export default function AnalyticsPage() {
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={data.inv_vs_rop} margin={{ top: 8, right: 16, bottom: 0, left: -8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-              <XAxis dataKey="sku" tick={{ fontSize: 9, fill: '#9ca3af' }} angle={-30} textAnchor="end" height={50} />
+              <XAxis dataKey="product_id" tick={{ fontSize: 9, fill: '#9ca3af' }} angle={-30} textAnchor="end" height={50} />
               <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} />
               <Tooltip contentStyle={tooltipStyle} />
               <Legend wrapperStyle={{ fontSize: '10px' }} />
@@ -177,18 +177,18 @@ export default function AnalyticsPage() {
         </ResponsiveContainer>
       </div>
 
-      {/* Row 3: SKU Comparison + Revenue */}
+      {/* Row 3: Product ID Comparison + Revenue */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* SKU Comparison — NEW */}
+        {/* Product ID Comparison — NEW */}
         <div className="panel">
-          <div className="panel-header">SKU Comparison</div>
+          <div className="panel-header">Product ID Comparison</div>
 
           <div className="flex flex-wrap gap-3 mt-2 mb-4">
-            <select value={sku1} onChange={(e) => setSku1(e.target.value)} className="input-field text-xs flex-1 min-w-[100px]">
+            <select value={product1} onChange={(e) => setSku1(e.target.value)} className="input-field text-xs flex-1 min-w-[100px]">
               {allSkus.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
             <span className="text-xs text-surface-400 self-center font-medium">vs</span>
-            <select value={sku2} onChange={(e) => setSku2(e.target.value)} className="input-field text-xs flex-1 min-w-[100px]">
+            <select value={product2} onChange={(e) => setSku2(e.target.value)} className="input-field text-xs flex-1 min-w-[100px]">
               {allSkus.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
@@ -218,14 +218,14 @@ export default function AnalyticsPage() {
           </ResponsiveContainer>
         </div>
 
-        {/* Top Revenue SKUs */}
+        {/* Top Revenue Products */}
         <div className="panel">
-          <div className="panel-header">Top 10 SKUs by Revenue</div>
+          <div className="panel-header">Top 10 Products by Revenue</div>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={data.revenue} layout="vertical" margin={{ top: 4, right: 20, bottom: 0, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" horizontal={false} />
               <XAxis type="number" tick={{ fontSize: 9, fill: '#9ca3af' }} />
-              <YAxis dataKey="sku" type="category" tick={{ fontSize: 9, fill: '#6b7280' }} width={60} />
+              <YAxis dataKey="product_id" type="category" tick={{ fontSize: 9, fill: '#6b7280' }} width={60} />
               <Tooltip contentStyle={tooltipStyle} formatter={(v) => `₹${Number(v).toLocaleString()}`} />
               <Bar dataKey="revenue" name="Revenue (₹)" fill="#10b981" radius={[0, 4, 4, 0]} />
             </BarChart>
@@ -255,23 +255,23 @@ export default function AnalyticsPage() {
 
       {/* Row 5: Heatmap — Improved */}
       <div className="panel">
-        <div className="panel-header">Inventory Heatmap (SKU × Warehouse)</div>
+        <div className="panel-header">Inventory Heatmap (Product ID × Warehouse)</div>
         <div className="overflow-x-auto mt-3">
           <table className="w-full text-xs">
             <thead>
               <tr>
-                <th className="px-3 py-2 text-left text-surface-500 font-medium text-[10px] uppercase tracking-wider">SKU</th>
+                <th className="px-3 py-2 text-left text-surface-500 font-medium text-[10px] uppercase tracking-wider">Product ID</th>
                 {heatmapWhs.map((wh) => (
                   <th key={wh} className="px-3 py-2 text-center text-surface-500 font-medium text-[10px] uppercase tracking-wider">{wh}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {heatmapSkus.map((sku) => (
-                <tr key={sku} className="border-t border-surface-100">
-                  <td className="px-3 py-2 text-surface-700 font-medium">{sku}</td>
+              {heatmapSkus.map((product_id) => (
+                <tr key={product_id} className="border-t border-surface-100">
+                  <td className="px-3 py-2 text-surface-700 font-medium">{product_id}</td>
                   {heatmapWhs.map((wh) => {
-                    const val = heatLookup[`${sku}-${wh}`] || 0;
+                    const val = heatLookup[`${product_id}-${wh}`] || 0;
                     const colors = getHeatColor(val);
                     return (
                       <td key={wh} className="px-3 py-2 text-center font-semibold rounded"

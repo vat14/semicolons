@@ -23,7 +23,7 @@ app.add_middleware(
 # ==========================================
 # LOAD DATA FROM CSV (bypasses MongoDB SSL issues on Python 3.14)
 # ==========================================
-CSV_PATH = os.path.join(os.path.dirname(__file__), "inventory_analysis.csv")
+CSV_PATH = os.path.join(os.path.dirname(__file__), "inventory_control_tower_master.csv")
 
 _data_cache: list[dict] = []
 
@@ -76,7 +76,7 @@ class ScanItem(BaseModel):
     detected_shape: Optional[str] = "UNKNOWN"
 
 class DemandPredictRequest(BaseModel):
-    sku_id: str
+    product_id: str
     warehouse_id: str
     promotion: int = 0
     lead_time: int = 14
@@ -172,16 +172,16 @@ def get_alerts():
         if ml_model._df is not None:
             df = ml_model._df
             # Get latest row per SKU+Warehouse
-            latest = df.sort_values('Date').groupby(['SKU_ID', 'Warehouse_ID']).last().reset_index()
+            latest = df.sort_values('Date').groupby(['Product_ID', 'Warehouse_ID']).last().reset_index()
 
             # Low stock alerts: inventory below dynamic reorder point
             low_stock = latest[latest['Inventory_Level'] < latest['Dynamic_ROP']].sort_values('Inventory_Level')
             for _, row in low_stock.head(5).iterrows():
                 alerts.append({
-                    "id": f"LS-{row['SKU_ID']}-{row['Warehouse_ID']}",
+                    "id": f"LS-{row['Product_ID']}-{row['Warehouse_ID']}",
                     "type": "low_stock",
                     "severity": "critical",
-                    "title": f"{row['SKU_ID']} @ {row['Warehouse_ID']}",
+                    "title": f"{row['Product_ID']} @ {row['Warehouse_ID']}",
                     "detail": f"Stock: {int(row['Inventory_Level'])} units — below reorder point ({round(float(row['Dynamic_ROP']), 0)}). High demand item, reorder immediately.",
                     "tag": "Low Stock",
                 })
@@ -191,10 +191,10 @@ def get_alerts():
             high_stock = latest[latest['Overstock_Ratio'] > 50].sort_values('Overstock_Ratio', ascending=False)
             for _, row in high_stock.head(5).iterrows():
                 alerts.append({
-                    "id": f"HS-{row['SKU_ID']}-{row['Warehouse_ID']}",
+                    "id": f"HS-{row['Product_ID']}-{row['Warehouse_ID']}",
                     "type": "high_stock",
                     "severity": "warning",
-                    "title": f"{row['SKU_ID']} @ {row['Warehouse_ID']}",
+                    "title": f"{row['Product_ID']} @ {row['Warehouse_ID']}",
                     "detail": f"Stock: {int(row['Inventory_Level'])} units — {round(float(row['Overstock_Ratio']), 0)}× daily sales. Capital stuck, consider promotion.",
                     "tag": "Overstock",
                 })
@@ -217,12 +217,12 @@ def get_chart_data():
     df = ml_model._df
 
     # 1. Inventory Level vs Reorder Point (latest per SKU, top 15)
-    latest = df.sort_values('Date').groupby('SKU_ID').last().reset_index()
-    top_skus = latest.sort_values('Inventory_Level', ascending=False).head(15)
+    latest = df.sort_values('Date').groupby('Product_ID').last().reset_index()
+    top_products = latest.sort_values('Inventory_Level', ascending=False).head(15)
     inv_vs_rop = [
-        {"sku": row['SKU_ID'], "inventory": int(row['Inventory_Level']),
+        {"product_id": row['Product_ID'], "inventory": int(row['Inventory_Level']),
          "reorder_point": round(float(row['Dynamic_ROP']), 0)}
-        for _, row in top_skus.iterrows()
+        for _, row in top_products.iterrows()
     ]
 
     # 2. Units Sold over time (daily aggregate)
@@ -254,7 +254,7 @@ def get_chart_data():
     latest['Revenue'] = latest['Units_Sold'] * latest['Unit_Cost']
     top_rev = latest.sort_values('Revenue', ascending=False).head(10)
     revenue = [
-        {"sku": row['SKU_ID'], "revenue": round(float(row['Revenue']), 2),
+        {"product_id": row['Product_ID'], "revenue": round(float(row['Revenue']), 2),
          "units": int(row['Units_Sold'])}
         for _, row in top_rev.iterrows()
     ]
@@ -278,11 +278,11 @@ def get_chart_data():
     ]
 
     # 6. Heatmap (SKU × Warehouse grid) — top 10 SKUs × all warehouses
-    top_10_skus = latest.sort_values('Units_Sold', ascending=False).head(10)['SKU_ID'].tolist()
-    heatmap_df = df[df['SKU_ID'].isin(top_10_skus)]
-    heat = heatmap_df.groupby(['SKU_ID', 'Warehouse_ID'])['Inventory_Level'].mean().reset_index()
+    top_10_products = latest.sort_values('Units_Sold', ascending=False).head(10)['Product_ID'].tolist()
+    heatmap_df = df[df['Product_ID'].isin(top_10_products)]
+    heat = heatmap_df.groupby(['Product_ID', 'Warehouse_ID'])['Inventory_Level'].mean().reset_index()
     heatmap = [
-        {"sku": row['SKU_ID'], "warehouse": row['Warehouse_ID'],
+        {"product_id": row['Product_ID'], "warehouse": row['Warehouse_ID'],
          "level": round(float(row['Inventory_Level']), 0)}
         for _, row in heat.iterrows()
     ]
@@ -372,9 +372,9 @@ def get_ml_summary():
 
 @app.post("/api/ml/predict-demand")
 def predict_demand(req: DemandPredictRequest):
-    """Predict demand for a given SKU + Warehouse combo."""
+    """Predict demand for a given Product + Warehouse combo."""
     result = ml_model.predict_demand(
-        sku_id=req.sku_id,
+        product_id=req.product_id,
         warehouse_id=req.warehouse_id,
         promotion=req.promotion,
         lead_time=req.lead_time,
@@ -390,5 +390,5 @@ def get_top_risk(limit: int = 10):
 
 @app.get("/api/ml/available-inputs")
 def get_available_inputs():
-    """Returns available SKU_IDs and Warehouse_IDs for the frontend."""
-    return ml_model.get_available_skus()
+    """Returns available Product_IDs and Warehouse_IDs for the frontend."""
+    return ml_model.get_available_products()

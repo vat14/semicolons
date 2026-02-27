@@ -35,8 +35,8 @@ export default function InventoryPage() {
   const [showDropdown, setShowDropdown] = useState(false);
 
   // Prediction form
-  const [inputs, setInputs] = useState({ skus: [], warehouses: [] });
-  const [form, setForm] = useState({ sku_id: '', warehouse_id: '', promotion: 0, lead_time: 14 });
+  const [inputs, setInputs] = useState({ products: [], warehouses: [] });
+  const [form, setForm] = useState({ product_id: '', warehouse_id: '', promotion: 0, lead_time: 14 });
   const [prediction, setPrediction] = useState(null);
   const [predLoading, setPredLoading] = useState(false);
 
@@ -47,8 +47,8 @@ export default function InventoryPage() {
   }, []);
 
   useEffect(() => {
-    if (inputs.skus.length && !form.sku_id) {
-      setForm((f) => ({ ...f, sku_id: inputs.skus[0], warehouse_id: inputs.warehouses[0] }));
+    if (inputs.products.length && !form.product_id) {
+      setForm((f) => ({ ...f, product_id: inputs.products[0], warehouse_id: inputs.warehouses[0] }));
     }
   }, [inputs]);
 
@@ -91,7 +91,7 @@ export default function InventoryPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => results.length && setShowDropdown(true)}
-            placeholder="Search by SKU, product name, warehouse..."
+            placeholder="Search by Product ID, product name, warehouse..."
             className="input-field w-full pl-11 text-base"
           />
           {query && (
@@ -107,7 +107,7 @@ export default function InventoryPage() {
               <div key={i} className="px-4 py-3 hover:bg-brand-50 border-b border-surface-100 last:border-0 cursor-pointer transition-colors"
                 onClick={() => setShowDropdown(false)}>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-surface-800">{r.SKU_ID}</span>
+                  <span className="text-sm font-medium text-surface-800">{r.Product_ID}</span>
                   <span className="badge-neutral">{r.Warehouse_ID}</span>
                 </div>
                 <div className="flex gap-4 mt-1 text-xs text-surface-500">
@@ -165,10 +165,10 @@ export default function InventoryPage() {
           <form onSubmit={handlePredict} className="space-y-4 mt-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-medium text-surface-600 block mb-1">SKU</label>
-                <select value={form.sku_id} onChange={(e) => setForm({ ...form, sku_id: e.target.value })}
+                <label className="text-xs font-medium text-surface-600 block mb-1">Product ID</label>
+                <select value={form.product_id} onChange={(e) => setForm({ ...form, product_id: e.target.value })}
                   className="input-field w-full text-sm">
-                  {inputs.skus.map((s) => <option key={s} value={s}>{s}</option>)}
+                  {inputs.products.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div>
@@ -200,7 +200,7 @@ export default function InventoryPage() {
           {prediction && !prediction.error && (
             <div className="mt-4 bg-surface-50 rounded-xl border border-surface-200 p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-surface-500">{prediction.sku_id} @ {prediction.warehouse_id}</span>
+                <span className="text-xs text-surface-500">{prediction.product_id} @ {prediction.warehouse_id}</span>
                 <span className={`badge ${
                   prediction.risk_level === 'HIGH' ? 'badge-danger' : prediction.risk_level === 'MODERATE' ? 'badge-warning' : 'badge-success'
                 }`}>{prediction.risk_level} Risk</span>
