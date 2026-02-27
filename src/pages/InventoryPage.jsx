@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { searchInventory, fetchAvailableInputs, predictDemand } from '../data/api';
+import { fetchInventory, fetchAvailableInputs, predictDemand } from '../data/api';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -19,21 +19,10 @@ const warehouseLocations = [
   { id: 'WH-005', name: 'Kolkata East', lat: 22.5726, lng: 88.3639 },
 ];
 
-// Debounce hook
-function useDebounce(value, delay) {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const handler = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(handler);
-  }, [value, delay]);
-  return debounced;
-}
-
 export default function InventoryPage() {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
+  const [allData, setAllData] = useState([]);
+  const [filter, setFilter] = useState('');
+  const [loading, setLoading] = useState(true);
 
   // Prediction form
   const [inputs, setInputs] = useState({ products: [], warehouses: [] });
@@ -41,9 +30,11 @@ export default function InventoryPage() {
   const [prediction, setPrediction] = useState(null);
   const [predLoading, setPredLoading] = useState(false);
 
-  const debouncedQuery = useDebounce(query, 300);
-
   useEffect(() => {
+    fetchInventory(200).then((res) => {
+      setAllData(res.data || []);
+      setLoading(false);
+    }).catch(() => setLoading(false));
     fetchAvailableInputs().then(setInputs).catch(() => {});
   }, []);
 
@@ -52,15 +43,6 @@ export default function InventoryPage() {
       setForm((f) => ({ ...f, product_id: inputs.products[0], warehouse_id: inputs.warehouses[0] }));
     }
   }, [inputs]);
-
-  useEffect(() => {
-    if (!debouncedQuery.trim()) { setResults([]); return; }
-    setLoading(true);
-    searchInventory(debouncedQuery)
-      .then((r) => { setResults(r.data || []); setShowDropdown(true); })
-      .catch(() => setResults([]))
-      .finally(() => setLoading(false));
-  }, [debouncedQuery]);
 
   const handlePredict = async (e) => {
     e.preventDefault();
@@ -74,61 +56,96 @@ export default function InventoryPage() {
     setPredLoading(false);
   };
 
+  // Filter data by search term
+  const q = filter.toLowerCase().trim();
+  const filtered = q
+    ? allData.filter((r) =>
+        String(r.Product_ID || '').toLowerCase().includes(q) ||
+        String(r.SKU_ID || '').toLowerCase().includes(q) ||
+        String(r.Warehouse_ID || '').toLowerCase().includes(q) ||
+        String(r.Product_Name || '').toLowerCase().includes(q)
+      )
+    : allData;
+
   return (
     <div className="p-6 space-y-5 animate-fade-in">
       <div>
         <h2 className="text-xl font-bold text-surface-900">Inventory & Predictions</h2>
-        <p className="text-sm text-surface-500 mt-0.5">Search products, view warehouse map, and predict demand</p>
+        <p className="text-sm text-surface-500 mt-0.5">Master list, warehouse map, and demand predictor</p>
       </div>
 
-      {/* Search Bar */}
-      <div className="panel relative z-[100] mb-5">
-        <div className="relative z-[100]">
-          <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onFocus={() => results.length && setShowDropdown(true)}
-            placeholder="Search by Product ID, product name, warehouse..."
-            className="input-field w-full pl-11 text-base"
-          />
-          {query && (
-            <button onClick={() => { setQuery(''); setResults([]); setShowDropdown(false); }}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600 text-sm">✕</button>
-          )}
+      {/* Master Inventory Table with Search */}
+      <div className="panel">
+        <div className="flex items-center justify-between mb-4">
+          <div className="panel-header">Master Inventory List</div>
+          <div className="relative w-72">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Filter by product, SKU, warehouse..."
+              className="input-field w-full pl-10 text-sm"
+            />
+            {filter && (
+              <button onClick={() => setFilter('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600 text-sm">✕</button>
+            )}
+          </div>
         </div>
 
-        {/* Dropdown Results */}
-        {showDropdown && results.length > 0 && (
-          <div className="absolute left-0 right-0 top-[110%] bg-white border border-surface-200 rounded-xl shadow-elevated z-[100] max-h-72 overflow-y-auto">
-            {results.slice(0, 20).map((r, i) => (
-              <div key={i} className="px-4 py-3 hover:bg-brand-50 border-b border-surface-100 last:border-0 cursor-pointer transition-colors"
-                onClick={() => {
-                  setQuery(r.Product_ID);
-                  setForm(f => ({ ...f, product_id: r.Product_ID, warehouse_id: r.Warehouse_ID }));
-                  setShowDropdown(false);
-                }}>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-surface-800">{r.Product_ID}</span>
-                  <span className="badge-neutral">{r.Warehouse_ID}</span>
-                </div>
-                <div className="flex gap-4 mt-1 text-xs text-surface-500">
-                  <span>Stock: <b className="text-surface-700">{r.Inventory_Level}</b></span>
-                  <span>Sold: <b className="text-surface-700">{r.Units_Sold}</b></span>
-                  <span>Cost: <b className="text-surface-700">₹{r.Unit_Cost}</b></span>
-                </div>
-              </div>
-            ))}
+        {loading ? (
+          <div className="text-center py-12 text-surface-400 text-sm animate-pulse">Loading inventory...</div>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-surface-200" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-surface-50 z-10">
+                <tr>
+                  <th className="px-3 py-2.5 text-left text-surface-500 font-semibold text-[10px] uppercase tracking-wider">Product ID</th>
+                  <th className="px-3 py-2.5 text-left text-surface-500 font-semibold text-[10px] uppercase tracking-wider">SKU</th>
+                  <th className="px-3 py-2.5 text-left text-surface-500 font-semibold text-[10px] uppercase tracking-wider">Warehouse</th>
+                  <th className="px-3 py-2.5 text-right text-surface-500 font-semibold text-[10px] uppercase tracking-wider">Stock</th>
+                  <th className="px-3 py-2.5 text-right text-surface-500 font-semibold text-[10px] uppercase tracking-wider">Reorder Pt</th>
+                  <th className="px-3 py-2.5 text-right text-surface-500 font-semibold text-[10px] uppercase tracking-wider">Units Sold</th>
+                  <th className="px-3 py-2.5 text-right text-surface-500 font-semibold text-[10px] uppercase tracking-wider">Unit Cost</th>
+                  <th className="px-3 py-2.5 text-center text-surface-500 font-semibold text-[10px] uppercase tracking-wider">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={8} className="text-center py-8 text-surface-400">No results found</td></tr>
+                ) : filtered.slice(0, 100).map((r, i) => {
+                  const stock = Number(r.Inventory_Level || 0);
+                  const reorder = Number(r.Reorder_Point || 0);
+                  const isLow = stock < reorder;
+                  return (
+                    <tr key={i} className={`border-t border-surface-100 hover:bg-surface-50 transition-colors ${isLow ? 'bg-danger-50/30' : ''}`}>
+                      <td className="px-3 py-2 font-medium text-surface-800">{r.Product_ID}</td>
+                      <td className="px-3 py-2 text-surface-600">{r.SKU_ID}</td>
+                      <td className="px-3 py-2 text-surface-600">{r.Warehouse_ID}</td>
+                      <td className={`px-3 py-2 text-right font-semibold ${isLow ? 'text-danger-600' : 'text-surface-800'}`}>{stock}</td>
+                      <td className="px-3 py-2 text-right text-surface-600">{reorder}</td>
+                      <td className="px-3 py-2 text-right text-surface-600">{r.Units_Sold}</td>
+                      <td className="px-3 py-2 text-right text-surface-600">₹{r.Unit_Cost}</td>
+                      <td className="px-3 py-2 text-center">
+                        <span className={`inline-block text-[9px] font-semibold px-2 py-0.5 rounded-full ${
+                          isLow ? 'bg-danger-100 text-danger-700' : 'bg-brand-50 text-brand-700'
+                        }`}>
+                          {isLow ? 'LOW' : 'OK'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
-        {showDropdown && query && results.length === 0 && !loading && (
-          <div className="absolute left-0 right-0 top-[110%] bg-white border border-surface-200 rounded-xl shadow-elevated z-[100] px-4 py-6 text-center text-sm text-surface-400">
-            No results for "{query}"
-          </div>
-        )}
+        <div className="mt-2 text-[10px] text-surface-400 text-right">
+          Showing {Math.min(filtered.length, 100)} of {filtered.length} results
+        </div>
       </div>
 
       {/* Two column: Map + Predictor */}

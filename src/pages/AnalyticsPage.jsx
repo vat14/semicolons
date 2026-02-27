@@ -227,32 +227,43 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Row 3: Warehouse Performance — full width */}
+      {/* Row 3: Warehouse Performance — normalized to % for visibility */}
       <div className="panel">
-        <div className="panel-header">Warehouse Performance Matrix</div>
+        <div className="panel-header">Warehouse Performance Comparison</div>
+        <p className="text-[10px] text-surface-400 mt-1 mb-3">All metrics normalized to % of best warehouse for fair comparison</p>
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={data.warehouse} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+          <BarChart data={data.warehouse.map((w) => {
+            const maxSold = Math.max(...data.warehouse.map((x) => x.total_sold || 0), 1);
+            const maxInv = Math.max(...data.warehouse.map((x) => x.avg_inventory || 0), 1);
+            const maxRev = Math.max(...data.warehouse.map((x) => x.revenue || 0), 1);
+            return {
+              warehouse: w.warehouse,
+              'Units Sold %': Math.round(((w.total_sold || 0) / maxSold) * 100),
+              'Avg Inventory %': Math.round(((w.avg_inventory || 0) / maxInv) * 100),
+              'Revenue %': Math.round(((w.revenue || 0) / maxRev) * 100),
+              fill_rate: w.fill_rate,
+            };
+          })} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
             <XAxis dataKey="warehouse" tick={{ fontSize: 11, fill: '#6b7280' }} />
-            <YAxis yAxisId="left" orientation="left" tick={{ fontSize: 9, fill: '#9ca3af' }} />
-            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9, fill: '#9ca3af' }} />
-            <Tooltip contentStyle={tooltipStyle} />
+            <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+            <Tooltip contentStyle={tooltipStyle} formatter={(v) => `${v}%`} />
             <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-            <Bar yAxisId="left" dataKey="total_sold" name="Total Units Sold" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-            <Bar yAxisId="left" dataKey="avg_inventory" name="Avg Inventory" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-            <Bar yAxisId="right" dataKey="revenue" name="Total Revenue (₹)" fill="#10b981" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Units Sold %" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Avg Inventory %" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Revenue %" fill="#10b981" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Row 4: Heatmap — full width */}
+      {/* Row 4: Heatmap — redesigned as a visual grid */}
       <div className="panel">
-        <div className="panel-header">Inventory Heatmap (Product ID × Warehouse)</div>
+        <div className="panel-header">Inventory Levels by Product × Warehouse</div>
         <div className="overflow-x-auto mt-3">
-          <table className="w-full text-xs">
+          <table className="w-full text-xs border-separate" style={{ borderSpacing: '3px' }}>
             <thead>
               <tr>
-                <th className="px-3 py-2 text-left text-surface-500 font-medium text-[10px] uppercase tracking-wider">Product ID</th>
+                <th className="px-3 py-2 text-left text-surface-500 font-medium text-[10px] uppercase tracking-wider" style={{ width: '100px' }}>Product</th>
                 {heatmapWhs.map((wh) => (
                   <th key={wh} className="px-3 py-2 text-center text-surface-500 font-medium text-[10px] uppercase tracking-wider">{wh}</th>
                 ))}
@@ -260,15 +271,23 @@ export default function AnalyticsPage() {
             </thead>
             <tbody>
               {heatmapSkus.map((product_id) => (
-                <tr key={product_id} className="border-t border-surface-100">
-                  <td className="px-3 py-2 text-surface-700 font-medium">{product_id}</td>
+                <tr key={product_id}>
+                  <td className="px-3 py-2.5 text-surface-700 font-semibold text-[10px]">{product_id}</td>
                   {heatmapWhs.map((wh) => {
                     const val = heatLookup[`${product_id}-${wh}`] || 0;
-                    const colors = getHeatColor(val);
+                    const ratio = val / maxLevel;
+                    // Gradient from red (low) → amber → green (high)
+                    const hue = ratio * 120; // 0=red, 60=yellow, 120=green
+                    const bgColor = val === 0 ? '#f9fafb' : `hsl(${hue}, 70%, 92%)`;
+                    const textColor = val === 0 ? '#d1d5db' : `hsl(${hue}, 60%, 35%)`;
+                    const barWidth = Math.max(ratio * 100, 5);
+                    const barColor = val === 0 ? '#e5e7eb' : `hsl(${hue}, 65%, 55%)`;
                     return (
-                      <td key={wh} className="px-3 py-2 text-center font-semibold rounded"
-                        style={{ backgroundColor: colors.bg, color: colors.text }}>
-                        {val || '—'}
+                      <td key={wh} className="px-2 py-2 rounded-md" style={{ backgroundColor: bgColor, minWidth: '80px' }}>
+                        <div className="text-center font-bold text-sm" style={{ color: textColor }}>{val || '—'}</div>
+                        <div className="mt-1 h-1.5 rounded-full bg-white/60 overflow-hidden">
+                          <div className="h-full rounded-full transition-all" style={{ width: `${barWidth}%`, backgroundColor: barColor }} />
+                        </div>
                       </td>
                     );
                   })}
@@ -277,12 +296,11 @@ export default function AnalyticsPage() {
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-center gap-4 mt-3 text-[10px] text-surface-400">
-          <div className="flex items-center gap-1"><div className="w-4 h-3 rounded" style={{ background: '#fef2f2' }} /><span style={{color:'#ef4444'}}>Low</span></div>
-          <div className="flex items-center gap-1"><div className="w-4 h-3 rounded" style={{ background: '#fff7ed' }} /><span style={{color:'#ea580c'}}>Med-Low</span></div>
-          <div className="flex items-center gap-1"><div className="w-4 h-3 rounded" style={{ background: '#fffbeb' }} /><span style={{color:'#d97706'}}>Medium</span></div>
-          <div className="flex items-center gap-1"><div className="w-4 h-3 rounded" style={{ background: '#f0fdf4' }} /><span style={{color:'#16a34a'}}>Med-High</span></div>
-          <div className="flex items-center gap-1"><div className="w-4 h-3 rounded" style={{ background: '#dcfce7' }} /><span style={{color:'#15803d'}}>High</span></div>
+        <div className="flex items-center justify-center gap-6 mt-4 text-[10px] text-surface-500">
+          <div className="flex items-center gap-1.5"><div className="w-5 h-3 rounded" style={{ background: 'hsl(0, 70%, 92%)' }} /><span>Low Stock</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-5 h-3 rounded" style={{ background: 'hsl(40, 70%, 92%)' }} /><span>Medium</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-5 h-3 rounded" style={{ background: 'hsl(80, 70%, 92%)' }} /><span>Good</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-5 h-3 rounded" style={{ background: 'hsl(120, 70%, 92%)' }} /><span>High Stock</span></div>
         </div>
       </div>
     </div>

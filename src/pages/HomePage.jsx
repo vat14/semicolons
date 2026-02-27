@@ -138,7 +138,7 @@ export default function HomePage() {
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: -8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-              <XAxis dataKey="product_id" tick={{ fontSize: 9, fill: '#9ca3af' }} angle={-30} textAnchor="end" height={50} />
+              <XAxis dataKey="product_id" tick={{ fontSize: 9, fill: '#9ca3af' }} interval={0} height={40} />
               <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} />
               <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '11px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} />
               <Legend wrapperStyle={{ fontSize: '10px' }} />
