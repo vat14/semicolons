@@ -24,7 +24,7 @@ KPIs:
 ${JSON.stringify(kpis, null, 2)}
 
 INVENTORY DATA (sample from MongoDB):
-${JSON.stringify(inventoryData?.slice(0, 20), null, 2)}
+${JSON.stringify(inventoryData?.slice(0, 5), null, 2)}
 
 FLEET TRUCKS (positions, cargo, ETA):
 ${JSON.stringify(fleetTrucks, null, 2)}
@@ -83,39 +83,32 @@ export default function LogisAIChatbox() {
     try {
       const model = genAI.getGenerativeModel({
         model: 'gemini-2.0-flash',
+        systemInstruction: buildSystemPrompt(liveKpis, liveInventory),
       });
 
       // Build Gemini history from all previous turns (excluding the latest user message)
-      const geminiHistory = messages.map((msg, idx) => {
-        // Prepend the system prompt to the very first user message to guarantee context loads
-        let textContent = msg.content;
-        if (idx === 0 && msg.role === 'user') {
-          textContent = `${buildSystemPrompt(liveKpis, liveInventory)}\n\nUser Question: ${textContent}`;
-        }
-        return {
-          role: msg.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: textContent }],
-        };
-      });
+      const geminiHistory = messages.map((msg) => ({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }],
+      }));
 
       const chat = model.startChat({
         history: geminiHistory,
         generationConfig: { maxOutputTokens: 1024, temperature: 0.4 },
       });
 
-      // If this is the FIRST message we ever send, we need to inject the system instructions here if there was no history yet
-      let messageToSend = text;
-      if (messages.length === 0) {
-        messageToSend = `${buildSystemPrompt(liveKpis, liveInventory)}\n\nUser Question: ${text}`;
-      }
-
-      const result = await chat.sendMessage(messageToSend);
+      const result = await chat.sendMessage(text);
       const aiContent = result.response.text();
       setMessages((prev) => [...prev, { role: 'assistant', content: aiContent }]);
     } catch (err) {
+      let errorMsg = err.message || 'Failed to reach Gemini API.';
+      if (errorMsg.includes('429') || errorMsg.toLowerCase().includes('quota')) {
+        errorMsg = 'Woah! We hit the free-tier API speed limit (Too many requests/tokens per minute). Please wait 35-60 seconds before asking another question.';
+      }
+
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: `⚠️ Error: ${err.message || 'Failed to reach Gemini API.'}` },
+        { role: 'assistant', content: `⚠️ ${errorMsg}` },
       ]);
     } finally {
       setIsLoading(false);

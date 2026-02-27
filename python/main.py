@@ -1,9 +1,13 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, Request  # type: ignore
+from fastapi.middleware.cors import CORSMiddleware  # type: ignore
+from fastapi.responses import StreamingResponse, Response  # type: ignore
+from pydantic import BaseModel  # type: ignore
+from typing import Optional
 import random
 import csv
 import os
+import time
+import asyncio
 
 app = FastAPI(title="Semicolons Inventory API v2", version="2.0")
 
@@ -20,9 +24,9 @@ app.add_middleware(
 # ==========================================
 CSV_PATH = os.path.join(os.path.dirname(__file__), "supply_chain_dataset1.csv")
 
-_data_cache = []
+_data_cache: list[dict] = []
 
-def load_data():
+def load_data() -> list[dict]:
     global _data_cache
     if _data_cache:
         return _data_cache
@@ -51,7 +55,7 @@ def startup():
     print(f"✅ Loaded {len(_data_cache)} records from CSV")
 
 # ==========================================
-# UPDATED ML FEATURES (Matches new dataset)
+# PYDANTIC MODELS
 # ==========================================
 class SupplyChainFeatures(BaseModel):
     inventory_levels: int
@@ -59,10 +63,27 @@ class SupplyChainFeatures(BaseModel):
     units_sold: int
     forecasted_demand: int
 
+class ScanItem(BaseModel):
+    part_id: str
+    assigned_location: str
+    physical_location: str
+    status: str
+    detected_shape: Optional[str] = "UNKNOWN"
+
+# ==========================================
+# VISION ENGINE STATE (in-memory)
+# ==========================================
+scan_log: list[dict] = []
+last_engine_heartbeat: float = 0
+latest_frame: bytes = b""  # Latest JPEG frame from engine.py
+
+# ==========================================
+# SUPPLY CHAIN ENDPOINTS
+# ==========================================
 @app.get("/api/inventory")
 def get_inventory_status(limit: int = 50):
     try:
-        data = load_data()[:limit]
+        data = load_data()[:limit]  # type: ignore
         return {"count": len(data), "data": data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -79,7 +100,7 @@ def get_dashboard_kpis():
         
         # Average Inventory Level
         inv_levels = [row.get("Inventory_Level", 0) for row in data if isinstance(row.get("Inventory_Level"), (int, float))]
-        avg_inv = round(sum(inv_levels) / len(inv_levels), 2) if inv_levels else 0
+        avg_inv = round(sum(inv_levels) / len(inv_levels), 2) if inv_levels else 0  # type: ignore
 
         return {
             "total_items_tracked": total_records,
@@ -96,7 +117,6 @@ def predict_stockout_risk(features: SupplyChainFeatures):
     Calculates a fake risk based on Lead Times and Inventory vs Demand.
     Swap this for your PyTorch/XGBoost model when it's ready.
     """
-    # Simple logic: If demand outpaces inventory + lead time is high = High Risk
     risk_factor = (features.forecasted_demand - features.inventory_levels) * features.supplier_lead_times
     
     if risk_factor > 100:
@@ -113,7 +133,70 @@ def predict_stockout_risk(features: SupplyChainFeatures):
         "status": "success",
         "prediction": {
             "risk_classification": risk_class,
-            "confidence_score": round(random.uniform(0.75, 0.98), 2),
+            "confidence_score": round(random.uniform(0.75, 0.98), 2),  # type: ignore
             "suggested_action": action
         }
     }
+
+# ==========================================
+# VISION ENGINE ENDPOINTS
+# ==========================================
+@app.post("/api/scan-item")
+def receive_scan(item: ScanItem):
+    """Receives a scanned part from engine.py and logs it."""
+    global last_engine_heartbeat
+    last_engine_heartbeat = time.time()
+
+    entry = {
+        "part_id": item.part_id,
+        "assigned_location": item.assigned_location,
+        "physical_location": item.physical_location,
+        "status": item.status,
+        "detected_shape": item.detected_shape,
+        "timestamp": time.strftime("%H:%M:%S"),
+    }
+    scan_log.insert(0, entry)  # newest first
+
+    # Keep log capped at 100 entries
+    if len(scan_log) > 100:
+        scan_log.pop()
+
+    return {"status": "ok", "total_scans": len(scan_log)}
+
+@app.get("/api/scan-log")
+def get_scan_log():
+    """Returns all scanned items for the frontend Vision page."""
+    return {"count": len(scan_log), "data": scan_log}
+
+@app.get("/api/engine-status")
+def get_engine_status():
+    """Returns whether the vision engine has posted recently."""
+    now = time.time()
+    is_online = (now - last_engine_heartbeat) < 10  # consider online if heartbeat within 10s
+    return {
+        "online": is_online,
+        "total_scans": len(scan_log),
+        "last_heartbeat": last_engine_heartbeat
+    }
+
+# ==========================================
+# VIDEO STREAMING ENDPOINTS
+# ==========================================
+@app.post("/api/video-frame")
+async def receive_frame(request: Request):
+    """Receives a JPEG frame from engine.py."""
+    global latest_frame, last_engine_heartbeat
+    latest_frame = await request.body()
+    last_engine_heartbeat = time.time()
+    return {"status": "ok"}
+
+@app.get("/api/video-feed")
+async def video_feed():
+    """Serves an MJPEG stream for the browser."""
+    async def frame_generator():
+        while True:
+            if latest_frame:
+                yield (b"--frame\r\n"
+                       b"Content-Type: image/jpeg\r\n\r\n" + latest_frame + b"\r\n")
+            await asyncio.sleep(0.05)  # ~20 FPS
+    return StreamingResponse(frame_generator(), media_type="multipart/x-mixed-replace; boundary=frame")
