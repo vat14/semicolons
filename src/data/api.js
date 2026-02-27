@@ -21,3 +21,15 @@ export async function predictStockout(features) {
   if (!res.ok) throw new Error(`Prediction failed: ${res.status}`);
   return res.json();
 }
+
+export async function fetchScanLog() {
+  const res = await fetch(`${API_BASE}/api/scan-log`);
+  if (!res.ok) throw new Error(`Scan log fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchEngineStatus() {
+  const res = await fetch(`${API_BASE}/api/engine-status`);
+  if (!res.ok) throw new Error(`Engine status fetch failed: ${res.status}`);
+  return res.json();
+}

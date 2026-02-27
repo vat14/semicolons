@@ -1,0 +1,14 @@
+{
+    "EAN13-0051000012517": {
+        "assigned_location": "UNASSIGNED",
+        "physical_location": "SCANNED",
+        "status": "LOGGED",
+        "detected_shape": "N/A"
+    },
+    "QRCODE-https://de.wikipedia.org": {
+        "assigned_location": "UNASSIGNED",
+        "physical_location": "SCANNED",
+        "status": "LOGGED",
+        "detected_shape": "N/A"
+    }
+}
