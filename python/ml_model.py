@@ -35,8 +35,11 @@ def train_model(best_k: float = 1.0):
     """
     global _model, _le_product, _le_wh, _df, _summary
 
-    # 1. Load
+    # 1. Load & Subsample for memory optimization (Render 512MB limit)
     df = pd.read_csv(CSV_PATH)
+    if len(df) > 10000:
+        df = df.sample(n=10000, random_state=42).copy()
+        
     df['Date'] = pd.to_datetime(df['Date'], format='mixed', dayfirst=True)
     df = df.sort_values(['Product_ID', 'Warehouse_ID', 'Date'])
 
@@ -71,8 +74,8 @@ def train_model(best_k: float = 1.0):
     X_test = test[_features]
     y_test = test['Units_Sold']
 
-    # 5. Train
-    _model = RandomForestRegressor(n_estimators=150, random_state=42, n_jobs=-1)
+    # 5. Train (Lightweight for 512MB RAM limit)
+    _model = RandomForestRegressor(n_estimators=15, random_state=42, n_jobs=1)
     _model.fit(X_train, y_train)
 
     pred = _model.predict(X_test)

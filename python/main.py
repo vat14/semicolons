@@ -43,10 +43,14 @@ def load_data() -> list[dict]:
                     if '.' in row[key]:
                         row[key] = float(row[key])
                     else:
-                        row[key] = int(row[key])
                 except (ValueError, TypeError):
                     pass
             _data_cache.append(row)
+            
+            # Keep memory usage low for Render's 512MB limit
+            if len(_data_cache) > 10000:
+                _data_cache.pop(0)
+
     return _data_cache
 
 # Pre-load on startup
