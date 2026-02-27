@@ -43,6 +43,7 @@ def load_data() -> list[dict]:
                     if '.' in row[key]:
                         row[key] = float(row[key])
                     else:
+                        row[key] = int(row[key])
                 except (ValueError, TypeError):
                     pass
             _data_cache.append(row)
