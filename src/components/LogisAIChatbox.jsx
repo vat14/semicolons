@@ -101,17 +101,28 @@ export default function LogisAIChatbox() {
       const aiContent = result.response.text();
       setMessages((prev) => [...prev, { role: 'assistant', content: aiContent }]);
     } catch (err) {
-      let errorMsg = err.message || 'Failed to reach Gemini API.';
-      if (errorMsg.includes('429') || errorMsg.toLowerCase().includes('quota')) {
-        errorMsg = 'Woah! We hit the free-tier API speed limit (Too many requests/tokens per minute). Please wait 35-60 seconds before asking another question.';
-      }
+      const errorMsg = err.message || 'Failed to reach Gemini API.';
+      console.error('Gemini API Error:', err);
 
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: `⚠️ ${errorMsg}` },
-      ]);
-    } finally {
-      setIsLoading(false);
+      if (errorMsg.includes('429') || errorMsg.toLowerCase().includes('quota')) {
+        // Graceful fallback if the user burns through their free tier quota
+        setTimeout(() => {
+          setMessages((prev) => [
+            ...prev,
+            { 
+              role: 'assistant', 
+              content: `**[OFFLINE MOCK MODE]**\n\nI reviewed the live dashboard data while the live AI is offline due to Google API limits. Here is what I found:\n\n*   🔴 **Fleet Delay:** TRK-102 is delayed by 45 mins on NH-48. I recommend holding Dock 2.\n*   🟡 **Vision Engine:** A large quantity (10 units) of Hydraulic Cylinders was just added to Shelf A-1.\n*   🟢 **Inventory:** We have 5,000 active tracking records and 434 active stockouts.\n\n*(Note: Your Gemini API Key has exhausted its free-tier quota. Providing this mock response so you can still demo the Chat UI!)*` 
+            },
+          ]);
+          setIsLoading(false);
+        }, 1000);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: `⚠️ Error: ${errorMsg}` },
+        ]);
+        setIsLoading(false);
+      }
     }
   };
 

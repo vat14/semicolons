@@ -8,6 +8,7 @@ import csv
 import os
 import time
 import asyncio
+import ml_model  # type: ignore
 
 app = FastAPI(title="Semicolons Inventory API v2", version="2.0")
 
@@ -53,6 +54,10 @@ def load_data() -> list[dict]:
 def startup():
     load_data()
     print(f"✅ Loaded {len(_data_cache)} records from CSV")
+    try:
+        ml_model.train_model()
+    except Exception as e:
+        print(f"⚠️ ML Model training failed: {e}")
 
 # ==========================================
 # PYDANTIC MODELS
@@ -69,6 +74,12 @@ class ScanItem(BaseModel):
     physical_location: str
     status: str
     detected_shape: Optional[str] = "UNKNOWN"
+
+class DemandPredictRequest(BaseModel):
+    sku_id: str
+    warehouse_id: str
+    promotion: int = 0
+    lead_time: int = 14
 
 # ==========================================
 # VISION ENGINE STATE (in-memory)
@@ -138,6 +149,66 @@ def predict_stockout_risk(features: SupplyChainFeatures):
         }
     }
 
+@app.get("/api/inventory/search")
+def search_inventory(q: str = ""):
+    """Fuzzy search across all inventory columns."""
+    if not q.strip():
+        return {"count": 0, "data": []}
+    query = q.strip().lower()
+    data = load_data()
+    results = []
+    for row in data:
+        for val in row.values():
+            if query in str(val).lower():
+                results.append(row)
+                break
+    return {"count": len(results), "data": results[:100]}
+
+@app.get("/api/alerts")
+def get_alerts():
+    """Returns stock alerts (low stock / high stock) from the ML dataset."""
+    alerts = []
+    try:
+        if ml_model._df is not None:
+            df = ml_model._df
+            # Get latest row per SKU+Warehouse
+            latest = df.sort_values('Date').groupby(['SKU_ID', 'Warehouse_ID']).last().reset_index()
+
+            # Low stock alerts: inventory below dynamic reorder point
+            low_stock = latest[latest['Inventory_Level'] < latest['Dynamic_ROP']].sort_values('Inventory_Level')
+            for _, row in low_stock.head(5).iterrows():
+                alerts.append({
+                    "id": f"LS-{row['SKU_ID']}-{row['Warehouse_ID']}",
+                    "type": "low_stock",
+                    "severity": "critical",
+                    "title": f"{row['SKU_ID']} @ {row['Warehouse_ID']}",
+                    "detail": f"Stock: {int(row['Inventory_Level'])} units — below reorder point ({round(float(row['Dynamic_ROP']), 0)}). High demand item, reorder immediately.",
+                    "tag": "Low Stock",
+                })
+
+            # High stock alerts: inventory way above demand (overstock)
+            latest['Overstock_Ratio'] = latest['Inventory_Level'] / (latest['Units_Sold'].clip(lower=1))
+            high_stock = latest[latest['Overstock_Ratio'] > 50].sort_values('Overstock_Ratio', ascending=False)
+            for _, row in high_stock.head(5).iterrows():
+                alerts.append({
+                    "id": f"HS-{row['SKU_ID']}-{row['Warehouse_ID']}",
+                    "type": "high_stock",
+                    "severity": "warning",
+                    "title": f"{row['SKU_ID']} @ {row['Warehouse_ID']}",
+                    "detail": f"Stock: {int(row['Inventory_Level'])} units — {round(float(row['Overstock_Ratio']), 0)}× daily sales. Capital stuck, consider promotion.",
+                    "tag": "Overstock",
+                })
+    except Exception as e:
+        print(f"Alert generation error: {e}")
+
+    return {"alerts": alerts}
+
+@app.get("/api/ml/selling-insights")
+def get_selling_insights():
+    """Returns fast-selling and slow-selling SKU analysis with recommendations."""
+    result = ml_model.get_selling_insights() if hasattr(ml_model, 'get_selling_insights') else {"fast_movers": [], "slow_movers": []}
+    return result
+
 # ==========================================
 # VISION ENGINE ENDPOINTS
 # ==========================================
@@ -200,3 +271,36 @@ async def video_feed():
                        b"Content-Type: image/jpeg\r\n\r\n" + latest_frame + b"\r\n")
             await asyncio.sleep(0.05)  # ~20 FPS
     return StreamingResponse(frame_generator(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+# ==========================================
+# ML MODEL ENDPOINTS
+# ==========================================
+@app.get("/api/ml/summary")
+def get_ml_summary():
+    """Returns model accuracy, cost comparison, and feature importance."""
+    if ml_model._summary is None:
+        raise HTTPException(status_code=503, detail="ML model not trained yet")
+    return ml_model._summary
+
+@app.post("/api/ml/predict-demand")
+def predict_demand(req: DemandPredictRequest):
+    """Predict demand for a given SKU + Warehouse combo."""
+    result = ml_model.predict_demand(
+        sku_id=req.sku_id,
+        warehouse_id=req.warehouse_id,
+        promotion=req.promotion,
+        lead_time=req.lead_time,
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+@app.get("/api/ml/top-risk")
+def get_top_risk(limit: int = 10):
+    """Returns top N SKU+Warehouse combos most at risk of stockout."""
+    return {"data": ml_model.get_risk_rankings(top_n=limit)}
+
+@app.get("/api/ml/available-inputs")
+def get_available_inputs():
+    """Returns available SKU_IDs and Warehouse_IDs for the frontend."""
+    return ml_model.get_available_skus()

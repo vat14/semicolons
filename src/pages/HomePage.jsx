@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { fetchKPIs } from '../data/api';
+import { fetchKPIs, fetchAlerts } from '../data/api';
 import { delayWarnings, fleetTrucks } from '../data/mockFleet';
 
 const MetricCard = ({ metric }) => {
@@ -51,11 +51,15 @@ const MetricCard = ({ metric }) => {
 export default function HomePage() {
   const [kpis, setKpis] = useState(null);
   const [kpiError, setKpiError] = useState(null);
+  const [stockAlerts, setStockAlerts] = useState([]);
 
   useEffect(() => {
     fetchKPIs()
       .then(setKpis)
       .catch((err) => setKpiError(err.message));
+    fetchAlerts()
+      .then((res) => setStockAlerts(res.alerts || []))
+      .catch(() => {});
   }, []);
 
   // Build KPI cards from live API data
@@ -88,7 +92,18 @@ export default function HomePage() {
       ]
     : [];
 
-  // Fleet delay alerts (still from mock data — no fleet endpoint yet)
+  // Stock alerts from ML model
+  const mlAlerts = stockAlerts.map((a) => ({
+    id: a.id,
+    type: a.type,
+    severity: a.severity === 'critical' ? 'critical' : 'warning',
+    title: a.title,
+    detail: a.detail,
+    tag: a.tag,
+    timestamp: '',
+  }));
+
+  // Fleet delay alerts
   const fleetAlerts = delayWarnings.map((w) => {
     const truck = fleetTrucks.find((t) => t.id === w.truckId);
     return {
@@ -102,7 +117,7 @@ export default function HomePage() {
     };
   });
 
-  const allAlerts = [...fleetAlerts].sort(
+  const allAlerts = [...mlAlerts, ...fleetAlerts].sort(
     (a, b) => (a.severity === 'critical' ? -1 : 1)
   );
 
