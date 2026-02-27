@@ -2,13 +2,40 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchKPIs } from '../data/api';
 
+const globalPages = [
+  { title: 'Home', path: '/', tags: ['dashboard', 'kpi', 'overview', 'quick access'] },
+  { title: 'Alerts', path: '/alerts', tags: ['notifications', 'warnings', 'stockout', 'recent alerts'] },
+  { title: 'Inventory', path: '/inventory', tags: ['stock', 'items', 'products', 'search', 'map', 'inventory & predictions', 'warehouse locations', 'demand predictor'] },
+  { title: 'QR Scan', path: '/scan', tags: ['barcode', 'scanner', 'camera', 'check-in', 'scan item', 'scan new item'] },
+  { title: 'Analytics', path: '/analytics', tags: ['charts', 'graphs', 'revenue', 'sku comparison', 'heatmap', 'supply chain kpis', 'warehouse comparison', 'top products by revenue', 'stock health overview', 'units sold vs inventory'] },
+  { title: 'Live Feed', path: '/live-feed', tags: ['camera', 'vision', 'engine', 'detection', 'live computer vision', 'recent scan log'] },
+  { title: 'ML Insights', path: '/ml-insights', tags: ['predictions', 'demand forecasting', 'risk', 'machine learning demand predictor', 'top stockout risk products'] },
+  { title: 'Logistics', path: '/logistics', tags: ['trucks', 'shipments', 'fleet', 'routes', 'fleet tracking overview', 'active map'] },
+];
+
 export default function HomePage() {
   const [kpis, setKpis] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchKPIs().then(setKpis).catch(() => {});
   }, []);
+
+  const handleSearch = (val) => {
+    setSearchQuery(val);
+    if (!val.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const q = val.toLowerCase();
+    const matches = globalPages.filter(p => 
+      p.title.toLowerCase().includes(q) || 
+      p.tags.some(t => t.toLowerCase().includes(q))
+    );
+    setSearchResults(matches);
+  };
 
   const metrics = kpis ? [
     { label: 'Items Tracked', value: kpis.total_items_tracked?.toLocaleString(), change: '+12%', up: true, color: 'text-brand-600' },
@@ -28,21 +55,43 @@ export default function HomePage() {
   return (
     <div className="p-6 space-y-6 animate-fade-in">
       {/* Welcome Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between z-50 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-surface-900">Welcome Back 👋</h1>
           <p className="text-sm text-surface-500 mt-1">Your logistics control room — monitoring inventory, fleet, and forecasts</p>
         </div>
-        <div className="relative w-80">
+        <div className="relative w-full md:w-96 z-50">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
             type="text"
-            placeholder="Search across all pages..."
-            onFocus={() => navigate('/inventory')}
+            value={searchQuery}
+            placeholder="Search for pages & features (e.g. Demand Predictor)..."
+            onChange={(e) => handleSearch(e.target.value)}
             className="input-field w-full pl-10"
           />
+          {searchQuery && (
+            <button onClick={() => handleSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600 text-sm">✕</button>
+          )}
+          {searchQuery && (
+            <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-xl border border-surface-200 shadow-elevated overflow-hidden z-[60]">
+              <div className="max-h-60 overflow-y-auto">
+                {searchResults.length === 0 ? (
+                  <div className="p-4 text-center text-sm text-surface-500">No matching pages</div>
+                ) : (
+                  searchResults.map((r, i) => (
+                    <div key={i} className="px-4 py-3 hover:bg-surface-50 cursor-pointer border-b border-surface-100 last:border-0"
+                      onClick={() => { handleSearch(''); navigate(r.path); }}>
+                      <div className="font-medium text-surface-800 text-sm">{r.title}</div>
+                      <div className="text-[10px] text-surface-400 mt-0.5">{r.tags.join(', ')}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

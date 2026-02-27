@@ -158,12 +158,11 @@ def predict_demand(product_id: str, warehouse_id: str, promotion: int = 0, lead_
     subset = _df[(_df['Product_ID'] == product_id) & (_df['Warehouse_ID'] == warehouse_id)]
 
     if subset.empty:
-        rolling_demand = 0.0
-        demand_std = 0.0
-    else:
-        latest = subset.iloc[-1]
-        rolling_demand = float(latest.get('Rolling_7_Demand', 0))
-        demand_std = float(latest.get('Demand_Std_7', 0))
+        return {"error": f"Wrong Warehouse: Product {product_id} is not stored in {warehouse_id}."}
+    
+    latest = subset.iloc[-1]
+    rolling_demand = float(latest.get('Rolling_7_Demand', 0))
+    demand_std = float(latest.get('Demand_Std_7', 0))
 
     # Build feature vector
     import datetime

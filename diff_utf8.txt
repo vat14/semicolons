@@ -1,0 +1,213 @@
+﻿diff --git a/python/ml_model.py b/python/ml_model.py
+index 8e318c9..1615133 100644
+--- a/python/ml_model.py
++++ b/python/ml_model.py
+@@ -14,31 +14,31 @@ import os
+ # GLOBAL STATE (populated by train_model)
+ # ==========================================
+ _model = None
+-_le_sku = None
++_le_product = None
+ _le_wh = None
+ _df = None
+ _summary = None
+ _features = [
+-    'SKU_Encoded', 'WH_Encoded', 'Month', 'DayOfWeek',
++    'Product_Encoded', 'WH_Encoded', 'Month', 'DayOfWeek',
+     'Rolling_7_Demand', 'Demand_Std_7',
+     'Promotion_Flag', 'Supplier_Lead_Time_Days'
+ ]
+ 
+-CSV_PATH = os.path.join(os.path.dirname(__file__), "inventory_analysis.csv")
++CSV_PATH = os.path.join(os.path.dirname(__file__), "inventory_control_tower_master.csv")
+ 
+ 
+ def train_model(best_k: float = 1.0):
+     """
+-    Loads inventory_analysis.csv, engineers features, trains a RandomForest,
++    Loads inventory_control_tower_master.csv, engineers features, trains a RandomForest,
+     computes static vs dynamic reorder point comparison, and stores everything
+     in module-level globals for the API to use.
+     """
+-    global _model, _le_sku, _le_wh, _df, _summary
++    global _model, _le_product, _le_wh, _df, _summary
+ 
+     # 1. Load
+     df = pd.read_csv(CSV_PATH)
+-    df['Date'] = pd.to_datetime(df['Date'])
+-    df = df.sort_values(['SKU_ID', 'Warehouse_ID', 'Date'])
++    df['Date'] = pd.to_datetime(df['Date'], format="%d-%m-%Y", dayfirst=True)
++    df = df.sort_values(['Product_ID', 'Warehouse_ID', 'Date'])
+ 
+     # 2. Feature Engineering
+     df['Month'] = df['Date'].dt.month
+@@ -46,19 +46,19 @@ def train_model(best_k: float = 1.0):
+     df['Week'] = df['Date'].dt.isocalendar().week.astype(int)
+ 
+     df['Rolling_7_Demand'] = (
+-        df.groupby(['SKU_ID', 'Warehouse_ID'])['Units_Sold']
++        df.groupby(['Product_ID', 'Warehouse_ID'])['Units_Sold']
+           .transform(lambda x: x.rolling(7, min_periods=1).mean())
+     )
+     df['Demand_Std_7'] = (
+-        df.groupby(['SKU_ID', 'Warehouse_ID'])['Units_Sold']
++        df.groupby(['Product_ID', 'Warehouse_ID'])['Units_Sold']
+           .transform(lambda x: x.rolling(7, min_periods=1).std())
+     )
+     df['Demand_Std_7'] = df['Demand_Std_7'].fillna(0)
+ 
+     # 3. Encoding
+-    _le_sku = LabelEncoder()
++    _le_product = LabelEncoder()
+     _le_wh = LabelEncoder()
+-    df['SKU_Encoded'] = _le_sku.fit_transform(df['SKU_ID'])
++    df['Product_Encoded'] = _le_product.fit_transform(df['Product_ID'])
+     df['WH_Encoded'] = _le_wh.fit_transform(df['Warehouse_ID'])
+ 
+     # 4. Train/Test Split (time-series aware)
+@@ -135,27 +135,27 @@ def train_model(best_k: float = 1.0):
+     return _summary
+ 
+ 
+-def predict_demand(sku_id: str, warehouse_id: str, promotion: int = 0, lead_time: int = 14):
++def predict_demand(product_id: str, warehouse_id: str, promotion: int = 0, lead_time: int = 14):
+     """
+-    Predict demand for a given SKU + Warehouse combo using the trained model.
++    Predict demand for a given Product + Warehouse combo using the trained model.
+     Returns predicted demand, dynamic reorder point, and risk assessment.
+     """
+-    if _model is None or _le_sku is None or _le_wh is None or _df is None:
++    if _model is None or _le_product is None or _le_wh is None or _df is None:
+         return {"error": "Model not trained yet. Call train_model() first."}
+ 
+-    # Encode inputs (handle unseen SKU/WH gracefully)
++    # Encode inputs (handle unseen Product/WH gracefully)
+     try:
+-        sku_enc = _le_sku.transform([sku_id])[0]
++        product_enc = _le_product.transform([product_id])[0]
+     except ValueError:
+-        return {"error": f"Unknown SKU_ID: {sku_id}. Available: {list(_le_sku.classes_[:10])}..."}
++        return {"error": f"Unknown Product_ID: {product_id}. Available: {list(_le_product.classes_[:10])}..."}
+ 
+     try:
+         wh_enc = _le_wh.transform([warehouse_id])[0]
+     except ValueError:
+         return {"error": f"Unknown Warehouse_ID: {warehouse_id}. Available: {list(_le_wh.classes_)}"}
+ 
+-    # Get latest stats for this SKU+WH pair
+-    subset = _df[(_df['SKU_ID'] == sku_id) & (_df['Warehouse_ID'] == warehouse_id)]
++    # Get latest stats for this Product+WH pair
++    subset = _df[(_df['Product_ID'] == product_id) & (_df['Warehouse_ID'] == warehouse_id)]
+ 
+     if subset.empty:
+         rolling_demand = 0.0
+@@ -169,7 +169,7 @@ def predict_demand(sku_id: str, warehouse_id: str, promotion: int = 0, lead_time
+     import datetime
+     now = datetime.datetime.now()
+     feature_vector = pd.DataFrame([{
+-        'SKU_Encoded': sku_enc,
++        'Product_Encoded': product_enc,
+         'WH_Encoded': wh_enc,
+         'Month': now.month,
+         'DayOfWeek': now.weekday(),
+@@ -199,7 +199,7 @@ def predict_demand(sku_id: str, warehouse_id: str, promotion: int = 0, lead_time
+         action = "No Action Needed"
+ 
+     return {
+-        "sku_id": sku_id,
++        "product_id": product_id,
+         "warehouse_id": warehouse_id,
+         "predicted_daily_demand": round(predicted_demand, 2),
+         "dynamic_reorder_point": round(dynamic_rop, 2),
+@@ -211,14 +211,14 @@ def predict_demand(sku_id: str, warehouse_id: str, promotion: int = 0, lead_time
+ 
+ def get_risk_rankings(top_n: int = 10):
+     """
+-    Returns the top N SKU+Warehouse combinations most at risk of stockout,
++    Returns the top N Product+Warehouse combinations most at risk of stockout,
+     ranked by (Dynamic_ROP - Inventory_Level).
+     """
+     if _df is None:
+         return []
+ 
+-    # Get the latest row per SKU+Warehouse
+-    latest = _df.sort_values('Date').groupby(['SKU_ID', 'Warehouse_ID']).last().reset_index()
++    # Get the latest row per Product+Warehouse
++    latest = _df.sort_values('Date').groupby(['Product_ID', 'Warehouse_ID']).last().reset_index()
+ 
+     latest['Risk_Gap'] = latest['Dynamic_ROP'] - latest['Inventory_Level']
+     at_risk = latest[latest['Risk_Gap'] > 0].sort_values('Risk_Gap', ascending=False)
+@@ -226,7 +226,7 @@ def get_risk_rankings(top_n: int = 10):
+     results = []
+     for _, row in at_risk.head(top_n).iterrows():
+         results.append({
+-            "sku_id": row['SKU_ID'],
++            "product_id": row['Product_ID'],
+             "warehouse_id": row['Warehouse_ID'],
+             "inventory_level": round(float(row['Inventory_Level']), 2),
+             "dynamic_rop": round(float(row['Dynamic_ROP']), 2),
+@@ -237,26 +237,26 @@ def get_risk_rankings(top_n: int = 10):
+     return results
+ 
+ 
+-def get_available_skus():
+-    """Returns lists of available SKU_IDs and Warehouse_IDs for the frontend dropdown."""
+-    if _le_sku is None or _le_wh is None:
+-        return {"skus": [], "warehouses": []}
++def get_available_products():
++    """Returns lists of available Product_IDs and Warehouse_IDs for the frontend dropdown."""
++    if _le_product is None or _le_wh is None:
++        return {"products": [], "warehouses": []}
+     return {
+-        "skus": list(_le_sku.classes_),
++        "products": list(_le_product.classes_),
+         "warehouses": list(_le_wh.classes_),
+     }
+ 
+ 
+ def get_selling_insights():
+     """
+-    Analyzes the dataset to identify fast-selling and slow-selling SKUs
++    Analyzes the dataset to identify fast-selling and slow-selling Products
+     with actionable recommendations.
+     """
+     if _df is None:
+         return {"fast_movers": [], "slow_movers": []}
+ 
+-    # Aggregate by SKU across all warehouses and dates
+-    sku_stats = _df.groupby('SKU_ID').agg(
++    # Aggregate by Product across all warehouses and dates
++    product_stats = _df.groupby('Product_ID').agg(
+         total_sold=('Units_Sold', 'sum'),
+         avg_daily_sold=('Units_Sold', 'mean'),
+         latest_inventory=('Inventory_Level', 'last'),
+@@ -267,12 +267,12 @@ def get_selling_insights():
+     ).reset_index()
+ 
+     # Fast movers: high sales, potentially low inventory
+-    fast = sku_stats.sort_values('total_sold', ascending=False).head(5)
++    fast = product_stats.sort_values('total_sold', ascending=False).head(5)
+     fast_movers = []
+     for _, row in fast.iterrows():
+         days_of_stock = int(row['latest_inventory'] / max(row['avg_daily_sold'], 0.1))  # type: ignore
+         fast_movers.append({
+-            "sku_id": row['SKU_ID'],
++            "product_id": row['Product_ID'],
+             "total_sold": int(row['total_sold']),
+             "avg_daily_demand": round(float(row['avg_daily_sold']), 1),  # type: ignore
+             "current_stock": int(row['latest_inventory']),
+@@ -285,12 +285,12 @@ def get_selling_insights():
+         })
+ 
+     # Slow movers: low sales, high inventory
+-    slow = sku_stats.sort_values('total_sold', ascending=True).head(5)
++    slow = product_stats.sort_values('total_sold', ascending=True).head(5)
+     slow_movers = []
+     for _, row in slow.iterrows():
+         overstock_ratio = round(float(row['avg_inventory'] / max(row['avg_daily_sold'], 0.1)), 0)  # type: ignore
+         slow_movers.append({
+-            "sku_id": row['SKU_ID'],
++            "product_id": row['Product_ID'],
+             "total_sold": int(row['total_sold']),
+             "avg_daily_demand": round(float(row['avg_daily_sold']), 1),  # type: ignore
+             "current_stock": int(row['latest_inventory']),

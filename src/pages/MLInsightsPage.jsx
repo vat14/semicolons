@@ -91,7 +91,7 @@ export default function MLInsightsPage() {
               </div>
               <div>
                 <label className="text-xs font-medium text-surface-600 block mb-1">Lead Time (days)</label>
-                <input type="number" value={form.lead_time} onChange={(e) => setForm({ ...form, lead_time: parseInt(e.target.value) || 14 })}
+                <input type="number" value={form.lead_time} onChange={(e) => setForm({ ...form, lead_time: e.target.value === '' ? '' : parseInt(e.target.value) })}
                   className="input-field w-full text-sm" />
               </div>
               <div>
@@ -125,6 +125,11 @@ export default function MLInsightsPage() {
               <div className="bg-white rounded-lg border border-surface-200 p-2.5 text-xs text-surface-600">
                 💡 {prediction.suggested_action}
               </div>
+            </div>
+          )}
+          {prediction && prediction.error && (
+            <div className="mt-4 bg-danger-50 rounded-xl border border-danger-200 p-4 text-sm text-danger-700">
+              ⚠️ {prediction.error}
             </div>
           )}
         </div>

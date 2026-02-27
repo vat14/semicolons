@@ -11,6 +11,7 @@ export default function VisionPage() {
   const [engineStatus, setEngineStatus] = useState(null);
   const [scanLog, setScanLog] = useState([]);
   const [streaming, setStreaming] = useState(false);
+  const [backendFeedError, setBackendFeedError] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const intervalRef = useRef(null);
@@ -92,26 +93,41 @@ export default function VisionPage() {
             Live Camera Feed
             {streaming && <span className="ml-auto badge-danger">● LIVE</span>}
           </div>
-          <div className="relative bg-surface-100 rounded-lg overflow-hidden border border-surface-200" style={{ minHeight: '260px' }}>
+          <div className="relative bg-surface-100 rounded-lg overflow-hidden border border-surface-200" style={{ minHeight: '300px' }}>
+            {/* Backend Feed (Default) */}
+            {!streaming && !backendFeedError && (
+              <img 
+                src="http://localhost:8000/api/video-feed" 
+                alt="Backend Video Feed"
+                className="w-full h-full object-cover"
+                style={{ minHeight: '300px' }}
+                onError={() => setBackendFeedError(true)}
+              />
+            )}
+            
+            {/* Local Webcam Fallback */}
             <video ref={videoRef} autoPlay playsInline muted
-              className="w-full h-full object-cover" style={{ minHeight: '260px', display: streaming ? 'block' : 'none' }} />
-            {!streaming && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-surface-400">
+              className="w-full h-full object-cover" style={{ minHeight: '300px', display: streaming ? 'block' : 'none' }} />
+            
+            {/* Offline State */}
+            {!streaming && backendFeedError && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-surface-400 bg-surface-50">
                 <svg className="w-12 h-12 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                     d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
-                <span className="text-sm">Camera offline</span>
+                <span className="text-sm font-medium text-surface-700">Backend Feed Offline</span>
+                <span className="text-xs mt-1 max-w-xs text-center">engine.py is not transmitting. Start local fallback webcam below.</span>
               </div>
             )}
           </div>
           <canvas ref={canvasRef} className="hidden" />
           <div className="flex gap-2 mt-3">
             <button onClick={startCamera} disabled={streaming} className="btn-primary flex-1">
-              ▶ Start Feed
+              ▶ Start Local Fallback
             </button>
-            <button onClick={stopCamera} disabled={!streaming} className="btn-secondary flex-1">
-              ⏹ Stop
+            <button onClick={() => { stopCamera(); setBackendFeedError(false); }} disabled={!streaming && !backendFeedError} className="btn-secondary flex-1">
+              {streaming ? '⏹ Stop Local' : '🔄 Retry Backend Feed'}
             </button>
           </div>
         </div>

@@ -52,9 +52,20 @@ export default function LogisticsPage() {
 
   const filteredTrucks = searchQuery.trim()
     ? truckPositions.filter((t) =>
-        [t.id, t.driver, t.vehicleNumber, t.cargo, t.origin?.name, t.destination?.name]
+        [t.id, t.driver, t.vehicleNumber, t.cargo, t.origin?.name, t.destination?.name, t.status]
           .join(' ').toLowerCase().includes(searchQuery.toLowerCase()))
     : truckPositions;
+
+  // Auto-select if there's exactly 1 match
+  useEffect(() => {
+    if (searchQuery.trim() && filteredTrucks.length === 1 && selectedTruck?.id !== filteredTrucks[0].id) {
+      setSelectedTruck(filteredTrucks[0]);
+    }
+  }, [searchQuery, filteredTrucks, selectedTruck]);
+
+  const filteredWarnings = delayWarnings.filter(w => !searchQuery.trim() || 
+    [w.truckId, w.reason].join(' ').toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="p-6 space-y-5 animate-fade-in">
@@ -173,7 +184,7 @@ export default function LogisticsPage() {
             <span className="ml-auto badge-danger">{delayWarnings.length} ACTIVE</span>
           </div>
           <div className="space-y-2 mt-2">
-            {delayWarnings.map((w) => (
+            {filteredWarnings.map((w) => (
               <div key={w.id} className={`animate-alert-slide p-3 rounded-lg border flex items-start gap-3 ${
                 w.severity === 'high' ? 'bg-danger-50/50 border-danger-100' : 'bg-warning-50/50 border-warning-100'}`}>
                 <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${

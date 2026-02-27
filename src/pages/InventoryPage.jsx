@@ -56,7 +56,7 @@ export default function InventoryPage() {
     if (!debouncedQuery.trim()) { setResults([]); return; }
     setLoading(true);
     searchInventory(debouncedQuery)
-      .then((r) => { setResults(r.results || []); setShowDropdown(true); })
+      .then((r) => { setResults(r.data || []); setShowDropdown(true); })
       .catch(() => setResults([]))
       .finally(() => setLoading(false));
   }, [debouncedQuery]);
@@ -81,8 +81,8 @@ export default function InventoryPage() {
       </div>
 
       {/* Search Bar */}
-      <div className="panel relative">
-        <div className="relative">
+      <div className="panel relative z-50">
+        <div className="relative z-50">
           <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
@@ -105,7 +105,11 @@ export default function InventoryPage() {
           <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-surface-200 rounded-xl shadow-elevated z-50 max-h-72 overflow-y-auto">
             {results.slice(0, 20).map((r, i) => (
               <div key={i} className="px-4 py-3 hover:bg-brand-50 border-b border-surface-100 last:border-0 cursor-pointer transition-colors"
-                onClick={() => setShowDropdown(false)}>
+                onClick={() => {
+                  setQuery(r.Product_ID);
+                  setForm(f => ({ ...f, product_id: r.Product_ID, warehouse_id: r.Warehouse_ID }));
+                  setShowDropdown(false);
+                }}>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-surface-800">{r.Product_ID}</span>
                   <span className="badge-neutral">{r.Warehouse_ID}</span>
@@ -180,7 +184,7 @@ export default function InventoryPage() {
               </div>
               <div>
                 <label className="text-xs font-medium text-surface-600 block mb-1">Lead Time (days)</label>
-                <input type="number" value={form.lead_time} onChange={(e) => setForm({ ...form, lead_time: parseInt(e.target.value) || 14 })}
+                <input type="number" value={form.lead_time} onChange={(e) => setForm({ ...form, lead_time: e.target.value === '' ? '' : parseInt(e.target.value) })}
                   className="input-field w-full text-sm" />
               </div>
               <div>
@@ -206,22 +210,21 @@ export default function InventoryPage() {
                 }`}>{prediction.risk_level} Risk</span>
               </div>
               <div className="grid grid-cols-3 gap-3 text-center">
-                <div>
-                  <div className="text-lg font-bold text-info-600">{prediction.predicted_daily_demand}</div>
-                  <div className="text-[9px] text-surface-400 uppercase">Predicted</div>
-                </div>
-                <div>
-                  <div className="text-lg font-bold text-brand-600">{prediction.dynamic_reorder_point}</div>
-                  <div className="text-[9px] text-surface-400 uppercase">Reorder Pt</div>
-                </div>
-                <div>
-                  <div className="text-lg font-bold text-surface-800">{prediction.current_inventory}</div>
-                  <div className="text-[9px] text-surface-400 uppercase">Stock</div>
-                </div>
+                <div><div className="text-lg font-bold text-info-600">{prediction.predicted_daily_demand}</div>
+                  <div className="text-[9px] text-surface-400 uppercase">Predicted</div></div>
+                <div><div className="text-lg font-bold text-brand-600">{prediction.dynamic_reorder_point}</div>
+                  <div className="text-[9px] text-surface-400 uppercase">Reorder</div></div>
+                <div><div className="text-lg font-bold text-surface-800">{prediction.current_inventory}</div>
+                  <div className="text-[9px] text-surface-400 uppercase">Stock</div></div>
               </div>
               <div className="bg-white rounded-lg border border-surface-200 p-2.5 text-xs text-surface-600">
                 💡 {prediction.suggested_action}
               </div>
+            </div>
+          )}
+          {prediction && prediction.error && (
+            <div className="mt-4 bg-danger-50 rounded-xl border border-danger-200 p-4 text-sm text-danger-700">
+              ⚠️ {prediction.error}
             </div>
           )}
         </div>

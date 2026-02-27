@@ -75,7 +75,7 @@ export default function ScanStation({ onScan }) {
       </button>
 
       {useCamera && (
-        <div className="rounded-lg overflow-hidden border border-surface-200 mb-3" style={{ height: '200px' }}>
+        <div className="rounded-lg overflow-hidden border border-surface-200 mb-3 relative" style={{ minHeight: '350px', width: '100%' }}>
           <Scanner onScan={handleQrScan} />
         </div>
       )}

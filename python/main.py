@@ -1,4 +1,6 @@
-from fastapi import FastAPI, HTTPException, Request  # type: ignore
+import pandas as pd
+import numpy as np
+from fastapi import FastAPI, UploadFile, File, BackgroundTasks, HTTPException, Request  # type: ignore
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 from fastapi.responses import StreamingResponse, Response  # type: ignore
 from pydantic import BaseModel  # type: ignore
@@ -45,8 +47,6 @@ def load_data() -> list[dict]:
                 except (ValueError, TypeError):
                     pass
             _data_cache.append(row)
-            if i >= 4999:  # Limit to 5000 records like upload_data.py
-                break
     return _data_cache
 
 # Pre-load on startup
@@ -80,6 +80,10 @@ class DemandPredictRequest(BaseModel):
     warehouse_id: str
     promotion: int = 0
     lead_time: int = 14
+
+class ManualScanAction(BaseModel):
+    product_id: str
+    mode: str  # "add" or "remove"
 
 # ==========================================
 # VISION ENGINE STATE (in-memory)
@@ -164,6 +168,42 @@ def search_inventory(q: str = ""):
                 break
     return {"count": len(results), "data": results[:100]}
 
+@app.post("/api/inventory/scan")
+def update_inventory_csv(action: ManualScanAction):
+    """Updates the inventory level in the cache and pushes back to CSV."""
+    global _data_cache
+    updated = False
+    
+    # Reload to ensure we have data
+    if not _data_cache:
+        load_data()
+
+    for row in _data_cache:
+        # Match by product_id or fallback to any matching string in ID columns
+        if str(row.get('Product_ID')) == action.product_id or str(row.get('SKU_ID')) == action.product_id:
+            current_inv = int(row.get('Inventory_Level', 0))
+            if action.mode == 'add':
+                row['Inventory_Level'] = current_inv + 1
+            elif action.mode == 'remove':
+                row['Inventory_Level'] = max(0, current_inv - 1)
+            updated = True
+            
+            # Write entire cache back to CSV
+            try:
+                with open(CSV_PATH, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.DictWriter(f, fieldnames=_data_cache[0].keys())
+                    writer.writeheader()
+                    writer.writerows(_data_cache)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to write CSV: {str(e)}")
+            
+            # Retrain model in background slightly delayed or skipped to keep API fast
+            # For this deployment, we just update the cache. The next app reboot will retrain.
+            return {"status": "success", "new_level": row['Inventory_Level']}
+            
+    if not updated:
+        raise HTTPException(status_code=404, detail="Product ID not found in dataset.")
+
 @app.get("/api/alerts")
 def get_alerts():
     """Returns stock alerts (low stock / high stock) from the ML dataset."""
@@ -205,9 +245,28 @@ def get_alerts():
 
 @app.get("/api/ml/selling-insights")
 def get_selling_insights():
-    """Returns fast-selling and slow-selling SKU analysis with recommendations."""
     result = ml_model.get_selling_insights() if hasattr(ml_model, 'get_selling_insights') else {"fast_movers": [], "slow_movers": []}
     return result
+
+@app.get("/api/scan-log")
+def get_scan_log():
+    global scan_log
+    return {"log": scan_log}
+
+@app.post("/api/video-frame")
+async def receive_video_frame(frame: bytes = File(...)):
+    global latest_frame, scan_log
+    latest_frame = frame
+    # Simulate a detection event from the fallback webcam stream
+    if random.random() < 0.15:
+        from datetime import datetime
+        scan_log.insert(0, {
+            "item": f"Product_{random.randint(1,50)}",
+            "confidence": round(random.uniform(0.70, 0.99), 2),
+            "time": datetime.now().strftime("%H:%M:%S")
+        })
+        scan_log = scan_log[:50]
+    return {"status": "ok"}
 
 @app.get("/api/inventory/chart-data")
 def get_chart_data():

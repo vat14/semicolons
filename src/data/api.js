@@ -33,6 +33,15 @@ export async function fetchEngineStatus() {
   if (!res.ok) throw new Error(`Engine status fetch failed: ${res.status}`);
   return res.json();
 }
+export async function scanInventoryItem(product_id, mode) {
+  const res = await fetch(`${API_BASE}/api/inventory/scan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ product_id, mode }),
+  });
+  if (!res.ok) throw new Error(`Scan update failed: ${res.status}`);
+  return res.json();
+}
 
 // ==========================================
 // ML MODEL API HELPERS
