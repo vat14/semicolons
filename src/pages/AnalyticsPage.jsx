@@ -61,7 +61,7 @@ export default function AnalyticsPage() {
 
   // Heatmap setup
   const heatmapSkus = [...new Set(data.heatmap.map((h) => h.product_id))];
-  const heatmapWhs = [...new Set(data.heatmap.map((h) => h.warehouse))];
+  const heatmapWhs = [...new Set(data.warehouse.map((w) => w.warehouse))].sort();
   const heatLookup = {};
   data.heatmap.forEach((h) => { heatLookup[`${h.product_id}-${h.warehouse}`] = h.level; });
   const maxLevel = Math.max(...data.heatmap.map((h) => h.level), 1);
