@@ -5,10 +5,9 @@ import json
 from time import time as get_time
 import requests  # type: ignore
 
-# 1. Initialize Camera
-cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+# 1. Initialize Camera (Using Pre-recorded Demo Video)
+cap = cv2.VideoCapture('demo_scan.mp4')
+# Not setting fixed width/height so it respects the video's original resolution
 
 # 2. State Management
 current_scanned_part = None
@@ -22,15 +21,35 @@ posted_parts: set[str] = set()  # Parts already sent to API
 
 print("VISION ENGINE STARTED. Awaiting scans...")
 
+import time
+
 while True:
     ret, frame = cap.read()
-    if not ret: break
     
-    # Keep the original frame for scanning (Pyzbar can't read mirrored images)
+    # If the video ended, loop it back to frame 0
+    if not ret:
+        print("--- DEMO VIDEO LOOPING ---")
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        # Clear the scan caches so it can re-scan the codes in the video!
+        scanned_codes.clear()
+        posted_parts.clear()
+        continue
+        
+    # Slow the video processing to natural 25-30 fps
+    time.sleep(0.04)
+    
+    # Keep the original frame for scanning
     scannable_frame = frame.copy()
     
-    # Flip the frame for the display feed so it feels like a natural mirror
-    frame = cv2.flip(frame, 1)
+    # Let's resize it slightly if it's a massive 4K phone video so it fits on screen nicely
+    height, width, _ = frame.shape
+    if width > 1280 or height > 1280:
+        scale = 1280 / max(width, height)
+        scannable_frame = cv2.resize(scannable_frame, (0,0), fx=scale, fy=scale)
+        frame = cv2.resize(frame, (0,0), fx=scale, fy=scale)
+        
+    # We DO NOT flip the frame for a pre-recorded video since phone cameras record normally
+    # frame = cv2.flip(frame, 1)
     
     height, width, _ = frame.shape
 
@@ -63,10 +82,8 @@ while True:
             continue
         scanned_codes.add(raw_id)
         
-        # Draw on the FLIPPED frame (flip x-coordinates)
+        # Draw on the frame (no flipping needed since we didn't mirror it)
         pts = np.array([code.polygon], np.int32)
-        for pt in pts[0]:
-            pt[0] = width - pt[0]
         cv2.polylines(frame, [pts], True, (0, 255, 0), 3)
         
         text_x = width - code.rect.left - code.rect.width
