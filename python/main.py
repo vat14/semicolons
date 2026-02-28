@@ -411,8 +411,19 @@ def receive_scan(item: ScanItem):
     """Receives a scanned part from engine.py and logs it."""
     global last_engine_heartbeat
     last_engine_heartbeat = time.time()
+    
+    # Try to find the actual Product Name from our dataset
+    product_name_display = item.part_id
+    for row in _data_cache:
+        pid = str(row.get('Product_ID', '')).strip().lower()
+        sid = str(row.get('SKU_ID', '')).strip().lower()
+        if item.part_id.lower() in [pid, sid]:
+            name = str(row.get('Product_Name', ''))
+            product_name_display = f"{name} ({item.part_id})"
+            break
 
     entry = {
+        "item": product_name_display,
         "part_id": item.part_id,
         "assigned_location": item.assigned_location,
         "physical_location": item.physical_location,
