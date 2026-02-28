@@ -1,1 +1,20 @@
-{}
+{
+    "CHE-WH_4-SKU_45": {
+        "assigned_location": "UNASSIGNED",
+        "physical_location": "SCANNED",
+        "status": "LOGGED",
+        "detected_shape": "BOX"
+    },
+    "ELE-WH_1-SKU_3": {
+        "assigned_location": "UNASSIGNED",
+        "physical_location": "SCANNED",
+        "status": "LOGGED",
+        "detected_shape": "BOX"
+    },
+    "SKC-WH_1-SKU_1": {
+        "assigned_location": "UNASSIGNED",
+        "physical_location": "SCANNED",
+        "status": "LOGGED",
+        "detected_shape": "BOX"
+    }
+}
