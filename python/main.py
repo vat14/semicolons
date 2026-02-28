@@ -36,8 +36,9 @@ def load_data() -> list[dict]:
     with open(CSV_PATH, newline='', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         _data_cache = []
-        all_rows = []
         for i, row in enumerate(reader):
+            if i >= 10000:
+                break
             # Convert numeric fields
             for key in row:
                 try:
@@ -47,13 +48,7 @@ def load_data() -> list[dict]:
                         row[key] = int(row[key])
                 except (ValueError, TypeError):
                     pass
-            all_rows.append(row)
-            
-        # Randomly sample to keep memory usage low for Render's 512MB limit
-        # This ensures all warehouses and dates are evenly represented!
-        random.seed(42)  # consistent sample across backend fast-reloads
-        random.shuffle(all_rows)
-        _data_cache = all_rows[:10000]
+            _data_cache.append(row)
 
     return _data_cache
 
