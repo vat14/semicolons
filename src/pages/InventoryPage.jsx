@@ -31,7 +31,7 @@ export default function InventoryPage() {
   const [predLoading, setPredLoading] = useState(false);
 
   useEffect(() => {
-    fetchInventory(200).then((res) => {
+    fetchInventory(10000).then((res) => {
       setAllData(res.data || []);
       setLoading(false);
     }).catch(() => setLoading(false));
@@ -116,7 +116,7 @@ export default function InventoryPage() {
               <tbody>
                 {filtered.length === 0 ? (
                   <tr><td colSpan={8} className="text-center py-8 text-surface-400">No results found</td></tr>
-                ) : filtered.slice(0, 100).map((r, i) => {
+                ) : filtered.map((r, i) => {
                   const stock = Number(r.Inventory_Level || 0);
                   const reorder = Number(r.Reorder_Point || 0);
                   const isLow = stock < reorder;
@@ -144,7 +144,7 @@ export default function InventoryPage() {
           </div>
         )}
         <div className="mt-2 text-[10px] text-surface-400 text-right">
-          Showing {Math.min(filtered.length, 100)} of {filtered.length} results
+          Showing {filtered.length} results
         </div>
       </div>
 
