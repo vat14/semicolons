@@ -311,20 +311,6 @@ def get_scan_log():
     global scan_log
     return {"log": scan_log}
 
-@app.post("/api/video-frame")
-async def receive_video_frame(frame: bytes = File(...)):
-    global latest_frame, scan_log
-    latest_frame = frame
-    # Simulate a detection event from the fallback webcam stream
-    if random.random() < 0.15:
-        from datetime import datetime
-        scan_log.insert(0, {
-            "item": f"Product_{random.randint(1,50)}",
-            "confidence": round(random.uniform(0.70, 0.99), 2),
-            "time": datetime.now().strftime("%H:%M:%S")
-        })
-        scan_log = scan_log[:50]
-    return {"status": "ok"}
 
 @app.get("/api/inventory/chart-data")
 def get_chart_data():
