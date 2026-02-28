@@ -12,6 +12,7 @@ export default function VisionPage() {
   const [scanLog, setScanLog] = useState([]);
   const [streaming, setStreaming] = useState(false);
   const [backendFeedError, setBackendFeedError] = useState(false);
+  const [retryKey, setRetryKey] = useState(Date.now());
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const intervalRef = useRef(null);
@@ -97,11 +98,11 @@ export default function VisionPage() {
             {/* Backend Feed (Default) */}
             {!streaming && !backendFeedError && (
               <img 
-                src="http://localhost:8000/api/video-feed" 
+                src={`http://localhost:8000/api/video-feed?t=${retryKey}`} 
                 alt="Backend Video Feed"
                 className="w-full h-full object-cover"
                 style={{ minHeight: '300px' }}
-                onError={() => setBackendFeedError(true)}
+                onError={() => setTimeout(() => setRetryKey(Date.now()), 2000)}
               />
             )}
             
@@ -126,7 +127,7 @@ export default function VisionPage() {
             <button onClick={startCamera} disabled={streaming} className="btn-primary flex-1">
               ▶ Start Local Fallback
             </button>
-            <button onClick={() => { stopCamera(); setBackendFeedError(false); }} disabled={!streaming && !backendFeedError} className="btn-secondary flex-1">
+            <button onClick={() => { stopCamera(); setBackendFeedError(false); setRetryKey(Date.now()); }} disabled={!streaming && !backendFeedError} className="btn-secondary flex-1">
               {streaming ? '⏹ Stop Local' : '🔄 Retry Backend Feed'}
             </button>
           </div>
