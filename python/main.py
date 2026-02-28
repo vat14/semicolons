@@ -381,15 +381,16 @@ def get_chart_data():
         for _, row in wh_stats.iterrows()
     ]
 
-    # 6. Heatmap (SKU × Warehouse grid) — top 10 SKUs × all warehouses
-    top_10_products = latest.sort_values('Units_Sold', ascending=False).head(10)['Product_ID'].tolist()
-    heatmap_df = df[df['Product_ID'].isin(top_10_products)]
-    heat = heatmap_df.groupby(['Product_ID', 'Warehouse_ID'])['Inventory_Level'].mean().reset_index()
-    heatmap = [
-        {"product_id": row['Product_ID'], "warehouse": row['Warehouse_ID'],
-         "level": round(float(row['Inventory_Level']), 0)}
-        for _, row in heat.iterrows()
-    ]
+    # 6. Heatmap — top products PER warehouse so every warehouse always has data
+    heatmap = []
+    for wh_id, wh_group in latest.groupby('Warehouse_ID'):
+        top_in_wh = wh_group.sort_values('Units_Sold', ascending=False).head(10)
+        for _, row in top_in_wh.iterrows():
+            heatmap.append({
+                "product_id": row['Product_ID'],
+                "warehouse": row['Warehouse_ID'],
+                "level": round(float(row.get('Units_Sold', row.get('Inventory_Level', 0))), 0)
+            })
 
     return {
         "inv_vs_rop": inv_vs_rop,
