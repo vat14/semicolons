@@ -19,6 +19,11 @@ FASTAPI_URL = "http://127.0.0.1:8000/api/scan-item"
 FRAME_POST_URL = "http://127.0.0.1:8000/api/video-frame"
 posted_parts: set[str] = set()  # Parts already sent to API
 
+# 3. Virtual Box Scanner (for Demo Video)
+VIRTUAL_BARCODES = ["CHE-WH_4-SKU_45", "ELE-WH_1-SKU_3", "SKC-WH_1-SKU_1"]
+virtual_scan_display_time = 0
+last_virtual_id = ""
+
 print("VISION ENGINE STARTED. Awaiting scans...")
 
 import time
@@ -111,6 +116,49 @@ while True:
                         "status": "LOGGED",
                         "detected_shape": "N/A"
                     }
+
+    # ==========================================
+    # VIRTUAL BOX SCANNER (Triggers by Video Frame %)
+    # ==========================================
+    # Read current frame position
+    frame_index = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    
+    if total_frames > 0:
+        # Trigger the 3 barcodes at roughly 25%, 50%, and 75% through the video
+        trigger_frames = [
+            int(total_frames * 0.25),
+            int(total_frames * 0.50),
+            int(total_frames * 0.75)
+        ]
+        
+        if frame_index in trigger_frames:
+            part_id = VIRTUAL_BARCODES[trigger_frames.index(frame_index)]
+            raw_id = f"VIRTUAL-{part_id}"
+            
+            if raw_id not in scanned_codes:
+                scanned_codes.add(raw_id)
+                current_scanned_part = part_id
+                print(f"[VIRTUAL SCAN] Box passing! Assigned: {part_id}")
+                
+                virtual_scan_display_time = time.time()
+                last_virtual_id = part_id
+                
+                if current_scanned_part not in inventory_database:
+                    inventory_database[current_scanned_part] = {
+                        "assigned_location": current_scanned_location,
+                        "physical_location": "SCANNED",
+                        "status": "LOGGED",
+                        "detected_shape": "BOX"
+                    }
+                    
+    # Draw the virtual barcode box for 1.5 seconds after a trigger
+    if time.time() - virtual_scan_display_time < 1.5 and last_virtual_id:
+        cx, cy = width // 2, height // 2
+        cv2.rectangle(frame, (cx-90, cy-90), (cx+90, cy+90), (0, 255, 0), 4)
+        cv2.putText(frame, f"SCANNED: {last_virtual_id}", (cx-90, cy-100), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
+
 
     # ==========================================
     # POST SCAN TO FASTAPI (once per part, permanently)
